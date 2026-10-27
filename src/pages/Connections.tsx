@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Badge, Notice, Spinner } from '../components/ui';
+import { BrowserElsevier } from '../components/BrowserElsevier';
 
 interface Conn {
   provider: 'elsevier' | 'wiley' | 'springer';
@@ -67,7 +68,7 @@ export function ConnectionsPage() {
       <p className="eyebrow">Your access</p>
       <h1 className="page-title">Publisher connections</h1>
       <p className="lede">
-        ChemBrain uses <strong>your own</strong> publisher access. Credentials are encrypted on the server, used only for your requests, never shown again after saving, and never sent to the AI model. You can remove them at any time. Never enter your university password here.
+        ChemBrain uses <strong>your own</strong> publisher access. Server credentials are encrypted and never shown again after saving. The browser mode below keeps its key only in this tab. Keys are never sent to the AI model. Never enter your university password here.
       </p>
       {!data.encryptionConfigured && <Notice tone="bad">Credential storage is not configured on this server, so credentials cannot be saved yet.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
@@ -85,6 +86,7 @@ export function ConnectionsPage() {
         )}
         <p className="hint">Meta is configured by the ChemBrain operator; you don’t need your own key.</p>
       </div>
+      <BrowserElsevier />
       <div className="conn-grid">
         {data.connections.map((c) => (
           <ConnectionCard key={c.provider} conn={c} onChange={load} canSave={data.encryptionConfigured} />

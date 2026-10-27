@@ -98,6 +98,7 @@ npm run test:live
 ## Known limitations
 
 - **Campus-IP entitlement does not reach the cloud.** Elsevier content requires API permissions and applicable access rights even for open-access papers; a key that works on campus may need institutional-token or hosted-server access configured by Elsevier. Wiley subscription content is served only to the institution's network, so those papers show *Institutional connection required*. The researcher can upload the PDF they can open, and it gets the same identity and completeness checks.
+- **Elsevier browser mode:** the hosted website can retrieve articles directly through your browser's network. Enter a tab-only key under **Elsevier from this browser**, then use **Retrieve Elsevier using this browser** in Papers before analysis. Add the website's exact origin to your key's CORS Domains. The key is never included in the document import or model requests. See [Publisher connections](docs/PUBLISHERS.md).
 - **Springer Nature subscription full text** needs an approved full-text (TDM) agreement. A free or open-access key retrieves open-access articles only.
 - **ACS and RSC** offer no text-mining API for this use, so their papers need an upload.
 - **Supporting information** is listed when the XML references it, but is not retrieved automatically. The Wiley TDM API does not deliver it.

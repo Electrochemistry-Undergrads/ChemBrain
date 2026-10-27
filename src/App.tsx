@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { ProjectPage } from './pages/Project';
 import { ConnectionsPage } from './pages/Connections';
 import { AccountPage } from './pages/Account';
+import { forgetBrowserElsevier } from './lib/elsevier-browser';
 
 interface Session {
   user: { username: string; guest: boolean } | null;
@@ -17,6 +18,7 @@ export const useSession = () => useContext(SessionCtx);
 export function App() {
   const [state, setState] = useState<{ user: Session['user'] } | null>(null);
   const [error, setError] = useState('');
+  useEffect(() => { forgetBrowserElsevier(); }, [state?.user?.username]);
   // No sign-in page: each browser gets its own private workspace (a server-side guest account).
   const refresh = useCallback(async () => {
     try {
