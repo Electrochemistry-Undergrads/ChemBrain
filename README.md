@@ -2,13 +2,15 @@
 
 The coming-soon website for ChemBrain, a chemistry research workspace in development.
 
+Live website: https://chembrain.pages.dev/
+
 ## Website source
 
 `public/index.html` contains the responsive placeholder. The site has no dependencies, server, forms, analytics, API keys, or live publisher/model integrations.
 
 ## Cloudflare Pages
 
-Connect this repository using Cloudflare Pages' Git integration:
+This repository is connected to Cloudflare Pages through its Git integration:
 
 - Production branch: `main`
 - Framework preset: `None`
