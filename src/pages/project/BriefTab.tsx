@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { runSearch, STAGE_TEXT, type SearchStage } from '../../lib/search';
 import { Notice, Spinner } from '../../components/ui';
 import type { ProjectData } from '../Project';
+import { MaterialInput } from '../../components/MaterialInput';
 
 export function BriefTab({ data, reload }: { data: ProjectData; reload: () => void }) {
   const id = data.project.id;
@@ -33,13 +34,11 @@ export function BriefTab({ data, reload }: { data: ProjectData; reload: () => vo
       <label htmlFor="describe-p" className="card-title">
         Your idea
       </label>
-      <textarea
+      <MaterialInput
         id="describe-p"
         rows={5}
-        placeholder="e.g. A biodegradable film that keeps food dry."
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        maxLength={3000}
+        onChange={setDescription}
         disabled={stage !== null}
       />
       <p className="hint">Add any materials or limits that matter to you.</p>

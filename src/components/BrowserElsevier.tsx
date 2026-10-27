@@ -39,7 +39,7 @@ export function BrowserElsevier() {
       <form className="form" onSubmit={submit}>
         <label>
           API key
-          <input type="password" autoComplete="off" spellCheck={false} value={key} disabled={busy} onChange={(e) => setKey(e.target.value)} placeholder={browser.enabled ? 'Connected · enter a new key to replace' : 'Paste your key'} />
+          <input type="password" autoComplete="off" spellCheck={false} value={key} disabled={busy} onChange={(e) => setKey(e.target.value)} />
           <span className="hint">For this tab only. Re-enter after a reload.</span>
         </label>
         <label className="check">

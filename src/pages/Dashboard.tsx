@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Badge, Notice, Spinner } from '../components/ui';
 import { runSearch, STAGE_TEXT, type SearchStage } from '../lib/search';
+import { MaterialInput } from '../components/MaterialInput';
 
 interface ProjectRow {
   id: string;
@@ -69,7 +70,8 @@ export function Dashboard() {
   return (
     <section className="page home">
       <div className="home-heading">
-        <h1 className="page-title">What do you want to make?</h1>
+        <p className="workspace-label">Chemistry research workspace</p>
+        <h1 className="page-title">What do you want<br /><span className="outline-type">to make?</span></h1>
         <p className="muted">Find papers. Explore ways to make it.</p>
       </div>
       {error && <Notice tone="bad">{error}</Notice>}
@@ -77,16 +79,14 @@ export function Dashboard() {
           <label htmlFor="describe" className="sr-only">
             Your idea
           </label>
-          <textarea
+          <MaterialInput
             id="describe"
             rows={3}
-            placeholder="e.g. A biodegradable film that keeps food dry."
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={3000}
+            onChange={setDescription}
             disabled={busy}
           />
-          <div className="row between">
+          <div className="row between search-actions">
             <button className="btn btn-primary" disabled={busy || description.trim().length < 10}>
               {busy ? 'Searching…' : 'Find papers'}
             </button>
@@ -98,7 +98,7 @@ export function Dashboard() {
             )}
           </div>
         </form>
-      <h2 className="section-title">Your projects</h2>
+      <div className="project-heading"><h2 className="section-title">Your projects</h2><span className="small muted">{projects ? String(projects.length).padStart(2, '0') : '—'}</span></div>
       {!projects ? (
         <Spinner />
       ) : projects.length === 0 ? (

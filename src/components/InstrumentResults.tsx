@@ -18,7 +18,7 @@ export function InstrumentResults({ approaches, citations }: { approaches: Repor
     <div className="disclosure-body">
     <div className="instrument-controls">
       <label htmlFor={`${id}-search`}>Search instruments
-        <input id={`${id}-search`} type="search" placeholder="e.g. SEM, autoclave, FTIR…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input id={`${id}-search`} type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
       </label>
       <label htmlFor={`${id}-category`}>Category
         <select id={`${id}-category`} value={group} onChange={(e) => setGroup(e.target.value)}>

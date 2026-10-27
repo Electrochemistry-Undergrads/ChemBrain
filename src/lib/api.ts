@@ -4,7 +4,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; form?: FormData } = {}): Promise<T> {
+export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal } = {}): Promise<T> {
   const headers: Record<string, string> = { 'x-chembrain': '1' };
   let body: BodyInit | undefined;
   if (opts.form) body = opts.form;
@@ -12,7 +12,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
     headers['content-type'] = 'application/json';
     body = JSON.stringify(opts.body);
   }
-  const res = await fetch(path, { method: opts.method ?? (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin' });
+  const res = await fetch(path, { method: opts.method ?? (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin', signal: opts.signal });
   const text = await res.text();
   let data: any = null;
   try {

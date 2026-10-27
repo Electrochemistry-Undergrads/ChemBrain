@@ -390,7 +390,7 @@ function Questions({ projectId, disabled, onOpen }: { projectId: string; disable
         <label className="sr-only" htmlFor="ask">
           Question
         </label>
-        <input id="ask" className="grow" placeholder="Ask a question about these papers…" value={q} onChange={(e) => setQ(e.target.value)} disabled={disabled} />
+        <input id="ask" className="grow" value={q} onChange={(e) => setQ(e.target.value)} disabled={disabled} />
         <button className="btn btn-primary" disabled={disabled || busy || q.length < 5}>
           {busy ? 'Reading…' : 'Ask'}
         </button>

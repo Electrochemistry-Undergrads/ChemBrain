@@ -119,7 +119,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         <ShortText text={p.assessment} names={methods} />
       </Section>
 
-      <Section title="Suggested approaches" collapsed={false} note="Click a green number to see the source.">
+      <Section title="Suggested approaches" collapsed={false} note="Click a number to see its source.">
         {[...p.approaches].sort((a, b) => a.rank - b.rank).map((a) => (
             <article key={a.rank} id={`approach-${a.rank}`} className="approach">
               <h3>

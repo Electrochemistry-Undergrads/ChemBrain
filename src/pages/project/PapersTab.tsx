@@ -122,10 +122,9 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
   return (
     <div className="stack">
       <div className="toolbar">
-        <label className="sr-only" htmlFor="pf">
-          Filter papers
+        <label className="paper-search" htmlFor="pf">Search papers
+          <input id="pf" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} />
         </label>
-        <input id="pf" type="search" placeholder="Search papers…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <button className="btn btn-ghost" onClick={() => selectTop(8)} disabled={busy !== null}>
           Select top {Math.min(8, papers.length)}
         </button>
@@ -143,7 +142,7 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
         <summary>Add a paper</summary>
         <form className="row" onSubmit={addDoi}>
           <label className="grow" htmlFor="adoi">Paper DOI
-            <input id="adoi" placeholder="10.… or https://doi.org/…" value={doi} onChange={(e) => setDoi(e.target.value)} />
+            <input id="adoi" value={doi} onChange={(e) => setDoi(e.target.value)} />
           </label>
           <button className="btn" disabled={!doi || busy !== null}>Add</button>
         </form>

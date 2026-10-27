@@ -168,7 +168,6 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
               autoComplete="off"
               spellCheck={false}
               disabled={busy !== null}
-              placeholder={conn.savedFields.includes(f.key) || (conn.provider === 'springer' && conn.savedFields.includes('apiKey')) ? 'Saved · enter a new key to replace' : 'Paste your key'}
               value={values[f.key] ?? ''}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
             />

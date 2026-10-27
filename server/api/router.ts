@@ -8,6 +8,7 @@ import { paperRoutes } from './papers';
 import { projectRoutes } from './projects';
 import { reportRoutes } from './reports';
 import { systemRoutes } from './system';
+import { materialRoutes } from './materials';
 
 export interface Ctx {
   env: Env;
@@ -26,7 +27,7 @@ export interface Route {
   handler: (c: Ctx) => Promise<Response>;
 }
 
-const ROUTES: Route[] = [...systemRoutes, ...authRoutes, ...projectRoutes, ...paperRoutes, ...connectionRoutes, ...jobRoutes, ...reportRoutes];
+const ROUTES: Route[] = [...systemRoutes, ...authRoutes, ...materialRoutes, ...projectRoutes, ...paperRoutes, ...connectionRoutes, ...jobRoutes, ...reportRoutes];
 
 const compiled = ROUTES.map((r) => ({
   ...r,
