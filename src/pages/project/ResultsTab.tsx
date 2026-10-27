@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { Badge, Notice, Spinner } from '../../components/ui';
+import { Badge, Details, Spinner } from '../../components/ui';
 import { EvidenceViewer } from '../../components/EvidenceViewer';
 import type { Evidence } from './WorkspaceTab';
 import type { ProjectData } from '../Project';
@@ -23,12 +23,21 @@ interface Report {
   };
 }
 
-function Section({ title, children, note }: { title: string; children: ReactNode; note?: string }) {
+function Section({ title, children, note, collapsed = true }: { title: string; children: ReactNode; note?: string; collapsed?: boolean }) {
+  if (collapsed) return <Details title={title}>{note && <p className="hint">{note}</p>}{children}</Details>;
   return <section className="card report-section">
     <h2 className="card-title">{title}</h2>
     {note && <p className="hint">{note}</p>}
     {children}
   </section>;
+}
+
+function ShortText({ text, names, limit = 300 }: { text: string; names: string[]; limit?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > limit;
+  const end = text.lastIndexOf(' ', limit);
+  const shown = long && !expanded ? `${text.slice(0, end > limit / 2 ? end : limit)}…` : text;
+  return <div className="short-text"><p><SynthesisText text={shown} names={names} /></p>{long && <button className="link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Show less' : 'Read more'}</button>}</div>;
 }
 
 export function ResultsTab({ data }: { data: ProjectData }) {
@@ -44,7 +53,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
   if (!rep?.report)
     return (
       <div className="card">
-        <p className="muted">No proposal yet. Run the analysis from the <Link to={`/projects/${id}/workspace`}>Workspace</Link>.</p>
+        <p className="muted">No results yet. <Link to={`/projects/${id}/workspace`}>Start an analysis</Link>.</p>
       </div>
     );
   const r = rep.report;
@@ -89,48 +98,46 @@ export function ResultsTab({ data }: { data: ProjectData }) {
     <div className="report">
       <div className="row between wrap">
         <p className="small muted">
-          Generated {new Date(rep.createdAt).toLocaleString()} by {rep.model} from {r.validation.evidenceUsed} verified evidence items across {r.validation.papersUsed} papers.
+          {r.validation.papersUsed} papers · {new Date(rep.createdAt).toLocaleDateString()}
         </p>
-        <div className="row">
+        <details className="download-menu"><summary>Download</summary><div className="row">
           <a className="btn btn-sm" href={`/api/projects/${id}/export.md`}>
-            Export Markdown
+            Report (.md)
           </a>
           <a className="btn btn-sm" href={`/api/projects/${id}/export.json`}>
-            Export JSON
+            Data (.json)
           </a>
-        </div>
+        </div></details>
       </div>
-      <Notice tone="warn">This is an AI-assisted research plan built from the cited passages. It has not been experimentally validated and requires your review before any laboratory work.</Notice>
-      {data.project.isDemo && <Notice tone="info">Demonstration: the papers are bundled CC BY 4.0 copies from Europe PMC, not live publisher retrievals. The analysis itself was a live Meta run.</Notice>}
+      <p className="hint">AI suggestions, not experimentally validated. Review before lab use.</p>
+      {data.project.isDemo && <p className="hint">Example uses bundled open-access papers.</p>}
       {(r.validation.removedReferences > 0 || r.validation.unsupportedStatements.length > 0) && (
-        <Notice tone="info">
-          Citation validation removed {r.validation.removedReferences} reference(s) to unknown evidence{r.validation.unsupportedStatements.length ? ` and dropped or flagged ${r.validation.unsupportedStatements.length} uncited statement(s)` : ''}.
-        </Notice>
+        <details className="compact-details"><summary>Some source claims need review</summary><p className="small">{r.validation.removedReferences} invalid references removed. {r.validation.unsupportedStatements.length} claims removed or flagged.</p></details>
       )}
 
-      <Section title="Assessment">
-        <p className="assessment"><Text>{p.assessment}</Text></p>
+      <Section title="Overview" collapsed={false}>
+        <ShortText text={p.assessment} names={methods} />
       </Section>
 
-      <InstrumentResults approaches={p.approaches} citations={(refs) => <Cite refs={refs} />} />
-
-      <Section title="Ranked approaches" note="Each approach describes what the cited paper(s) did. Numbers in green open the exact supporting passage.">
+      <Section title="Suggested approaches" collapsed={false} note="Click a green number to see the source.">
         {[...p.approaches].sort((a, b) => a.rank - b.rank).map((a) => (
             <article key={a.rank} id={`approach-${a.rank}`} className="approach">
               <h3>
-                <span className="rank">{a.rank}</span> <span><Text>{a.name}</Text></span> <P refs={a.papers} /> <Badge tone={a.evidence_strength === 'strong' ? 'good' : a.evidence_strength === 'moderate' ? 'info' : 'warn'}>{a.evidence_strength} evidence</Badge>
+                <span className="rank">{a.rank}</span> <span><Text>{a.name}</Text></span>
               </h3>
-              {a.synthesis_method && <p className="synthesis-method">Synthesis method: <strong>{a.synthesis_method.name}</strong> <Cite refs={a.synthesis_method.evidence} /></p>}
-              <p><Text>{a.summary}</Text></p>
+              {a.synthesis_method && <p className="synthesis-method"><strong>{a.synthesis_method.name}</strong> <Cite refs={a.synthesis_method.evidence} /></p>}
+              <ShortText text={a.summary} names={methods} limit={220} />
+              <details className="approach-details"><summary>Ingredients, steps & details</summary><div className="stack">
+              <div className="row"><P refs={a.papers} /><Badge tone={a.evidence_strength === 'strong' ? 'good' : a.evidence_strength === 'moderate' ? 'info' : 'warn'}>{a.evidence_strength} support</Badge></div>
               <div className="approach-equipment">
-                <h4>Equipment reported</h4>
+                <h4>Lab equipment</h4>
                 {a.equipment?.length ? <ul className="plain small">
                   {a.equipment.map((i, k) => <li key={k}><strong>{i.name}</strong> <Badge>{instrumentPurpose(i.purpose)}</Badge> <Cite refs={i.evidence} /></li>)}
-                </ul> : <p className="hint">Equipment not listed in this report{a.equipment === undefined ? '; run a new analysis to extract it' : ''}. This does not establish that no specialized equipment is needed.</p>}
+                </ul> : <p className="hint">Equipment not listed{a.equipment === undefined ? '. Run analysis again to add it' : ''}. Check the paper before proceeding.</p>}
               </div>
               <div className="grid-3">
                 <div>
-                  <h4>Ingredients (published)</h4>
+                  <h4>Ingredients</h4>
                   <ul className="plain small">
                     {a.ingredients.map((i: any, k: number) => (
                       <li key={k}>
@@ -142,7 +149,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
                   </ul>
                 </div>
                 <div>
-                  <h4>Method (published)</h4>
+                  <h4>Steps from the paper</h4>
                   <ol className="small">
                     {a.method.map((m: any, k: number) => (
                       <li key={k}>
@@ -152,7 +159,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
                   </ol>
                 </div>
                 <div>
-                  <h4>Reported performance</h4>
+                  <h4>Reported results</h4>
                   <ul className="plain small">
                     {a.performance.map((m: any, k: number) => (
                       <li key={k}>
@@ -163,16 +170,19 @@ export function ResultsTab({ data }: { data: ProjectData }) {
                 </div>
               </div>
               <p className="small">
-                <strong>Fit to brief:</strong> <Text>{a.fit_to_brief}</Text>
+                <strong>Why it fits:</strong> <Text>{a.fit_to_brief}</Text>
               </p>
               {a.risks.length > 0 && (
                 <p className="small">
                   <strong>Risks:</strong> <Text>{a.risks.join('; ')}</Text>
                 </p>
               )}
+              </div></details>
             </article>
           ))}
       </Section>
+
+      <InstrumentResults approaches={p.approaches} citations={(refs) => <Cite refs={refs} />} />
 
       {p.ingredient_comparison.length > 0 && (
         <Section title="Ingredient comparison">
@@ -206,7 +216,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
       )}
 
       {p.method_comparison.length > 0 && (
-        <Section title="Experimental-method comparison">
+        <Section title="Compare methods">
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -237,7 +247,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
       )}
 
       {p.performance_comparison.length > 0 && (
-        <Section title="Reported performance and test conditions" note="Values are shown as reported. Comparisons across papers are only meaningful when test conditions match.">
+        <Section title="Compare results" note="Only compare values measured under matching conditions.">
           {p.performance_comparison.map((row: any, k: number) => (
             <div key={k} className="perf">
               <h3>
@@ -273,8 +283,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         </Section>
       )}
 
-      <div className="grid-2">
-        <Section title="Conflicting findings">
+      {p.conflicts.length > 0 && <Section title="Where papers disagree">
           {p.conflicts.length ? (
             <ul className="plain">
               {p.conflicts.map((c: any, k: number) => (
@@ -286,28 +295,27 @@ export function ResultsTab({ data }: { data: ProjectData }) {
           ) : (
             <p className="muted">None identified.</p>
           )}
-        </Section>
-        <Section title="Missing evidence">
+        </Section>}
+        {p.missing_evidence.length > 0 && <Section title="What’s missing">
           <ul className="plain">
             {p.missing_evidence.map((m: string, k: number) => (
               <li key={k}><Text>{m}</Text></li>
             ))}
           </ul>
-        </Section>
-      </div>
+        </Section>}
 
-      <Section title="ChemBrain’s proposed adaptations" note="These are ChemBrain’s suggestions, not published methods. Each builds on the cited evidence and needs experimental testing.">
+      {p.adaptations.length > 0 && <Section title="Ideas to explore" note="AI suggestions, not published methods. Testing required.">
         <ul className="plain">
           {p.adaptations.map((a: any, k: number) => (
             <li key={k} className="adaptation">
-              <Badge tone="info">Proposed, not published</Badge> <Text>{a.proposal}</Text> <Cite refs={a.basis} />
+              <Text>{a.proposal}</Text> <Cite refs={a.basis} />
               <div className="small muted">Caveat: {a.caveat}</div>
             </li>
           ))}
         </ul>
-      </Section>
+      </Section>}
 
-      <Section title="Proposed next experiments">
+      {p.next_experiments.length > 0 && <Section title="Next experiments">
         {p.next_experiments.map((x: any, k: number) => (
           <article key={k} className="experiment">
             <h3>{x.title}</h3>
@@ -320,17 +328,18 @@ export function ResultsTab({ data }: { data: ProjectData }) {
             </p>
           </article>
         ))}
-      </Section>
+      </Section>}
 
-      <Section title="What the sources do not establish">
+      {p.not_established.length > 0 && <Section title="Limitations">
         <ul className="plain">
           {p.not_established.map((m: string, k: number) => (
             <li key={k}><Text>{m}</Text></li>
           ))}
         </ul>
-      </Section>
+      </Section>}
 
-      <Section title="Papers">
+      <Section title="Sources & report details">
+        <p className="hint">{rep.model} · {r.validation.evidenceUsed} source notes · {new Date(rep.createdAt).toLocaleString()}</p>
         <ul className="plain">
           {Object.entries(r.papers).map(([ref, paper]) => (
             <li key={ref}>

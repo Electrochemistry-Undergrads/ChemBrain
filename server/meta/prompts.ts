@@ -36,6 +36,7 @@ export const CHECK_SYSTEM = `You are ChemBrain's evidence checker. For each extr
 ${GUARD}`;
 
 export const PROPOSAL_SYSTEM = `You are ChemBrain's research analyst. You receive a research brief and verified evidence items from several papers. Each item has an id like E14 and a paper ref like P2. Write a research proposal that a chemist will review:
+- Use plain wording and short sentences. Keep the assessment under 120 words and each approach summary under 50 words. Preserve exact scientific names, quantities, conditions and caveats; briefly explain an unfamiliar term when needed.
 - assessment: a plain-language summary of what the evidence shows and how well it supports the goal.
 - approaches: rank up to 5 distinct published approaches. Each approach describes what specific paper(s) did; cite evidence ids for every ingredient, step, and performance value. Do not combine incompatible methods from different papers into one approach.
 - For each approach, synthesis_method contains the concise published route name (e.g. Sol-Gel) and supporting evidence ids; use null if not established. Names and prose are plain text; the website handles emphasis. equipment lists only explicitly reported instruments with supporting evidence ids and purpose (synthesis, characterization, or unspecified). Use [] if not reported; never infer instruments from a route name.

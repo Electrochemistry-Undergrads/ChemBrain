@@ -48,7 +48,7 @@ export function Dashboard() {
     setBusy(true);
     try {
       const r = await api('/api/projects/demo', { method: 'POST' });
-      nav(`/projects/${r.project.id}/workspace`);
+      nav(`/projects/${r.project.id}/papers`);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -67,66 +67,30 @@ export function Dashboard() {
   };
 
   return (
-    <section className="page">
-      <div className="dash-hero">
-        <div>
-          <p className="eyebrow">A workspace for chemistry research</p>
-          <h1 className="display">
-            Chemistry,
-            <br />
-            <em>connected.</em>
-          </h1>
-        </div>
-        <div>
-          <p className="intro">
-            Describe the product or material you want to make. ChemBrain finds the research, retrieves the papers you are entitled to read, extracts ingredients, methods and results with Meta’s models, and proposes approaches — with every value traced to the exact passage it came from.
-          </p>
-          <ol className="steps">
-            <li>
-              <span className="num">01</span>
-              <div>
-                <h2>Brief</h2>
-                <p>Target properties, constraints, excluded solvents, equipment.</p>
-              </div>
-            </li>
-            <li>
-              <span className="num">02</span>
-              <div>
-                <h2>Evidence</h2>
-                <p>Full papers through your own Elsevier, Wiley and Springer Nature access.</p>
-              </div>
-            </li>
-            <li>
-              <span className="num">03</span>
-              <div>
-                <h2>Proposal</h2>
-                <p>Ranked approaches, comparisons, gaps and next experiments — all cited.</p>
-              </div>
-            </li>
-          </ol>
-        </div>
+    <section className="page home">
+      <div className="home-heading">
+        <h1 className="page-title">What do you want to make?</h1>
+        <p className="muted">Find papers. Explore ways to make it.</p>
       </div>
-      <h2 className="section-title">Your projects</h2>
       {error && <Notice tone="bad">{error}</Notice>}
-      <div className="grid-2">
-        <form className="card" onSubmit={search}>
-          <label htmlFor="describe" className="card-title">
-            Describe your compound or material
+        <form className="card new-project" onSubmit={search}>
+          <label htmlFor="describe" className="sr-only">
+            Your idea
           </label>
           <textarea
             id="describe"
-            rows={4}
-            placeholder="e.g. A biodegradable, water-resistant packaging film made from starch or chitosan, cast from water below 100 °C."
+            rows={3}
+            placeholder="e.g. A biodegradable film that keeps food dry."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={3000}
             disabled={busy}
           />
-          <p className="hint">A sentence or two is enough. ChemBrain works out the search terms, finds papers, and ranks them.</p>
-          <div className="row">
+          <div className="row between">
             <button className="btn btn-primary" disabled={busy || description.trim().length < 10}>
               {busy ? 'Searching…' : 'Find papers'}
             </button>
+            {!busy && <button className="btn btn-ghost" type="button" onClick={demo}>Try an example</button>}
             {stage && (
               <span className="small muted" role="status" aria-live="polite">
                 <Spinner label="Searching" /> {STAGE_TEXT[stage]}
@@ -134,16 +98,7 @@ export function Dashboard() {
             )}
           </div>
         </form>
-        <div className="card card-accent">
-          <h2 className="card-title">Demonstration</h2>
-          <p className="muted">
-            A ready-made project with four real, CC BY 4.0 papers on water-resistant biodegradable films. The papers are bundled copies from Europe PMC — clearly labelled, and not live publisher retrievals.
-          </p>
-          <button className="btn" onClick={demo} disabled={busy}>
-            Open a demonstration project
-          </button>
-        </div>
-      </div>
+      <h2 className="section-title">Your projects</h2>
       {!projects ? (
         <Spinner />
       ) : projects.length === 0 ? (
@@ -171,14 +126,16 @@ export function Dashboard() {
                 </form>
               ) : (
                 <Link to={`/projects/${p.id}`} className="project-link grow">
-                  <span className="project-name">{p.name}</span>
+                  <span className="project-name">{p.is_demo ? p.name.replace(/^Demonstration · /, '') : p.name}</span>
                   <span className="project-meta">
-                    {p.is_demo ? <Badge tone="info">Demonstration</Badge> : null} {p.paper_count} papers · {p.report_count ? `${p.report_count} report${p.report_count > 1 ? 's' : ''}` : 'no report yet'} · updated {new Date(p.updated_at).toLocaleDateString()}
+                    {p.is_demo ? <Badge tone="info">Example</Badge> : null} {p.paper_count} papers {p.report_count > 0 ? '· Results ready' : ''}
                   </span>
                 </Link>
               )}
               {renaming !== p.id && (
-                <div className="row">
+                <details className="project-actions">
+                  <summary aria-label={`Options for ${p.name}`}>•••</summary>
+                  <div className="row">
                   <button
                     className="btn btn-sm btn-ghost"
                     onClick={() => {
@@ -191,7 +148,8 @@ export function Dashboard() {
                   <button className="btn btn-sm btn-ghost danger" onClick={() => remove(p)}>
                     Delete
                   </button>
-                </div>
+                  </div>
+                </details>
               )}
             </li>
           ))}

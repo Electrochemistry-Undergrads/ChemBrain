@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { Badge, Notice, Spinner } from '../components/ui';
+import { Badge, Details, Notice, Spinner } from '../components/ui';
 import { BrowserElsevier } from '../components/BrowserElsevier';
 
 interface Conn {
@@ -17,8 +17,8 @@ type ServerConn = Omit<Conn, 'provider'> & { provider: 'wiley' | 'springer' };
 
 const INFO: Record<ServerConn['provider'], { title: string; fields: { key: string; label: string; required: boolean; help: string }[]; about: string[]; docs: string }> = {
   wiley: {
-    title: 'Wiley · Wiley-VCH',
-    fields: [{ key: 'tdmToken', label: 'TDM client token', required: true, help: 'Sign in to Wiley Online Library, open Text and Data Mining, accept the licence, and copy your token.' }],
+    title: 'Wiley',
+    fields: [{ key: 'tdmToken', label: 'Access token', required: true, help: 'Wiley Online Library → Text and Data Mining.' }],
     about: [
       'The Wiley TDM API delivers full-text PDFs, which ChemBrain parses. Supporting information is not included and is reported separately.',
       'Wiley serves subscription articles only to requests from your institution’s network. ChemBrain’s cloud servers are not on it, so subscription Wiley papers show “Institutional connection required”; open-access Wiley papers work. For those papers, upload the PDF you can open.',
@@ -29,7 +29,7 @@ const INFO: Record<ServerConn['provider'], { title: string; fields: { key: strin
   springer: {
     title: 'Springer Nature',
     fields: [
-      { key: 'openAccessApiKey', label: 'Open Access API key', required: true, help: 'From dev.springernature.com → API Management. Copy the credential for the Open Access API to retrieve open-access full text.' },
+      { key: 'openAccessApiKey', label: 'Open Access API key', required: true, help: 'Springer Nature → API Management → Open Access API.' },
     ],
     about: [
       'Retrieves open-access Springer Nature articles as JATS XML through the Open Access API.',
@@ -51,18 +51,16 @@ export function ConnectionsPage() {
   if (!data) return <Spinner />;
   return (
     <section className="page">
-      <p className="eyebrow">Your access</p>
-      <h1 className="page-title">Publisher connections</h1>
-      <p className="lede">
-        ChemBrain uses <strong>your own</strong> publisher access. Server credentials are encrypted and never shown again after saving. The browser mode below keeps its key only in this tab. Keys are never sent to the AI model. Never enter your university password here.
-      </p>
-      {!data.encryptionConfigured && <Notice tone="bad">Credential storage is not configured on this server, so credentials cannot be saved yet.</Notice>}
+      <h1 className="page-title">Connections</h1>
+      <p className="muted page-intro">Add a key to access more papers. Open papers work without one.</p>
+      {!data.encryptionConfigured && <Notice tone="warn">Saving keys is unavailable on this server.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
-      <div className="card">
-        <h2 className="card-title">Meta analysis</h2>
+      <details className="card disclosure ai-status">
+        <summary><span>Meta AI</span> <Badge tone={meta?.ok ? 'good' : 'warn'}>{meta?.ok ? 'Ready' : 'Unavailable'}</Badge></summary>
+        <div className="disclosure-body">
         {meta ? (
           <p>
-            <Badge tone={meta.ok ? 'good' : 'warn'}>{meta.ok ? 'Available' : 'Unavailable'}</Badge> Model <code>{meta.model}</code> — {meta.message}{' '}
+            <code>{meta.model}</code> — {meta.message}{' '}
             <span className="muted">
               Used today: {meta.usedToday.toLocaleString()} of {meta.dailyBudget.toLocaleString()} tokens.
             </span>
@@ -70,20 +68,19 @@ export function ConnectionsPage() {
         ) : (
           <Spinner />
         )}
-        <p className="hint">Meta is configured by the ChemBrain operator; you don’t need your own key.</p>
-      </div>
-      <BrowserElsevier />
+        <p className="hint">AI is set up by the site owner. Paper search works without it.</p>
+        </div>
+      </details>
       <div className="conn-grid">
+        <BrowserElsevier />
         {data.connections.filter((c): c is ServerConn => c.provider !== 'elsevier').map((c) => (
           <ConnectionCard key={c.provider} conn={c} onChange={load} canSave={data.encryptionConfigured} />
         ))}
       </div>
-      <div className="card">
-        <h2 className="card-title">Other sources</h2>
-        <p className="muted">
-          Crossref and Europe PMC are used without credentials: Crossref for discovery and metadata (never counted as full text), Europe PMC for open-access full text. For papers no connector can reach — including ACS and RSC, which offer no text-mining API to ChemBrain — upload the PDF you can open from the Papers tab.
-        </p>
-      </div>
+      <Details title="Sources & key privacy">
+        <p>Keys saved here are encrypted and never sent to Meta. Elsevier’s key stays in this tab only. Never enter your university password.</p>
+        <p>Search uses Crossref and Europe PMC. If a paper cannot be downloaded, upload your copy from Papers.</p>
+      </Details>
     </section>
   );
 }
@@ -113,7 +110,7 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
     setMsg(null);
     try {
       await persist();
-      setMsg({ tone: 'good', text: 'Saved. Run a connection test to check access.' });
+      setMsg({ tone: 'good', text: 'Key saved.' });
     } catch (e) {
       setMsg({ tone: 'bad', text: (e as Error).message });
     } finally {
@@ -153,13 +150,9 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
     <article className="card conn-card">
       <div className="row between">
         <h2 className="card-title">{info.title}</h2>
-        <Badge tone={conn.configured ? 'good' : 'neutral'}>{conn.configured ? 'Saved' : 'Not connected'}</Badge>
+        <Badge tone={conn.configured ? 'good' : 'neutral'}>{conn.configured ? 'Saved' : 'Not set'}</Badge>
       </div>
-      <ul className="plain small">
-        {info.about.map((a) => (
-          <li key={a}>{a}</li>
-        ))}
-      </ul>
+      <p className="small muted">{conn.provider === 'springer' ? 'For open-access Springer papers.' : 'For papers available through Wiley.'}</p>
       <form
         className="form"
         onSubmit={(e) => {
@@ -175,7 +168,7 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
               autoComplete="off"
               spellCheck={false}
               disabled={busy !== null}
-              placeholder={conn.savedFields.includes(f.key) || (conn.provider === 'springer' && conn.savedFields.includes('apiKey')) ? 'Saved — enter a new value to replace' : ''}
+              placeholder={conn.savedFields.includes(f.key) || (conn.provider === 'springer' && conn.savedFields.includes('apiKey')) ? 'Saved · enter a new key to replace' : 'Paste your key'}
               value={values[f.key] ?? ''}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
             />
@@ -185,7 +178,7 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
         {conn.provider === 'wiley' && <label className="check">
           <input type="checkbox" disabled={busy !== null} checked={attest} onChange={(e) => setAttest(e.target.checked)} />
           <span>
-            My institution’s licence with {info.title.split(' ·')[0]} permits sending subscription article text to an external AI service (Meta) for my research analysis. ChemBrain cannot infer this from subscription access; open-licence papers are analysed regardless.
+            My licence allows sending Wiley subscription papers to Meta for analysis. Not needed for openly licensed papers.
           </span>
         </label>}
         {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
@@ -194,21 +187,25 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
             {busy === 'save' ? 'Saving…' : 'Save'}
           </button>
           <button type="button" className="btn" disabled={(!conn.configured && !hasSecrets) || !canSave || busy !== null} onClick={runTest}>
-            {busy === 'test' ? 'Testing…' : 'Test connection'}
+            {busy === 'test' ? 'Testing…' : 'Test'}
           </button>
           {conn.configured && (
             <button type="button" className="btn btn-ghost danger" disabled={busy !== null} onClick={remove}>
               Remove
             </button>
           )}
-          <a className="small" href={info.docs} target="_blank" rel="noreferrer">
-            Publisher documentation ↗
-          </a>
         </div>
       </form>
+      <details className="compact-details">
+        <summary>Setup & access limits</summary>
+        <ul className="plain small">{info.about.map((a) => <li key={a}>{a}</li>)}</ul>
+        <a className="small" href={info.docs} target="_blank" rel="noreferrer">Get a key ↗</a>
+      </details>
       {test && checks.length > 0 && (
         <div className="test-result" aria-live="polite">
-          <p className="small muted">Live test{conn.lastTestAt ? ` · ${new Date(conn.lastTestAt).toLocaleString()}` : ''}</p>
+          <Badge tone={checks.some((c) => c.status === 'fail') ? 'bad' : checks.some((c) => c.status === 'warn') ? 'warn' : 'good'}>{checks.some((c) => c.status === 'fail') ? 'Connection needs attention' : checks.some((c) => c.status === 'warn') ? 'Connected with limits' : 'Connection working'}</Badge>
+          <details className="compact-details"><summary>Test details</summary>
+          <p className="hint">{conn.lastTestAt ? new Date(conn.lastTestAt).toLocaleString() : ''}</p>
           <ul className="plain">
             {checks.map((c) => (
               <li key={c.name}>
@@ -216,6 +213,7 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChang
               </li>
             ))}
           </ul>
+          </details>
         </div>
       )}
     </article>

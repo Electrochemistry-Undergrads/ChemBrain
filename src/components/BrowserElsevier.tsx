@@ -12,7 +12,7 @@ export function BrowserElsevier() {
   const activate = () => {
     configureBrowserElsevier(key, attest);
     setKey('');
-    setMessage({ tone: 'good', text: 'Enabled for this tab. In Papers, select Elsevier articles and click Retrieve Elsevier using this browser before starting analysis.' });
+    setMessage({ tone: 'good', text: 'Connected for this tab. Download Elsevier papers from Papers.' });
   };
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -24,7 +24,7 @@ export function BrowserElsevier() {
     try {
       if (key.trim()) { configureBrowserElsevier(key, attest); setKey(''); }
       await retrieveElsevierInBrowser('10.1016/j.heliyon.2024.e36608');
-      setMessage({ tone: 'good', text: 'Browser connection passed: Elsevier returned full-text XML directly to this browser. You can now retrieve selected Elsevier papers in the Papers tab.' });
+      setMessage({ tone: 'good', text: 'Connection working.' });
     } catch (error) {
       setMessage({ tone: 'bad', text: (error as Error).message });
     } finally { setBusy(false); }
@@ -32,28 +32,33 @@ export function BrowserElsevier() {
   return (
     <div className="card">
       <div className="row between">
-        <h2 className="card-title">Elsevier from this browser</h2>
-        <Badge tone={browser.enabled ? 'good' : 'neutral'}>{browser.enabled ? 'Enabled for this tab' : 'Off'}</Badge>
+        <h2 className="card-title">Elsevier</h2>
+        <Badge tone={browser.enabled ? 'good' : 'neutral'}>{browser.enabled ? 'Connected' : 'Not set'}</Badge>
       </div>
-      <p className="small">Use your computer’s network when the server connection fails. Your browser requests articles directly from Elsevier, then sends the XML to ChemBrain for identity checks, parsing, and analysis. Use your campus network or an institution-supported VPN when needed.</p>
+      <p className="small muted">Uses this browser. Campus access may be needed.</p>
       <form className="form" onSubmit={submit}>
         <label>
-          Elsevier API key for this browser
-          <input type="password" autoComplete="off" spellCheck={false} value={key} disabled={busy} onChange={(e) => setKey(e.target.value)} placeholder={browser.enabled ? 'Enabled — enter a key to replace' : ''} />
-          <span className="hint">Kept only in this tab’s memory; re-enter after refreshing or closing the tab. Saved server credentials are never read back. Do not enter an institutional token here.</span>
+          API key
+          <input type="password" autoComplete="off" spellCheck={false} value={key} disabled={busy} onChange={(e) => setKey(e.target.value)} placeholder={browser.enabled ? 'Connected · enter a new key to replace' : 'Paste your key'} />
+          <span className="hint">For this tab only. Re-enter after a reload.</span>
         </label>
-        <p className="hint">In Elsevier’s key settings, add <code>{window.location.origin}</code> to CORS Domains, with no trailing slash.</p>
         <label className="check">
           <input type="checkbox" checked={attest} disabled={busy} onChange={(e) => { setAttest(e.target.checked); attestBrowserElsevier(e.target.checked); }} />
-          <span>My licence permits sending Elsevier subscription article text to Meta for analysis. Open-licence papers do not need this confirmation.</span>
+          <span>My licence allows sending Elsevier subscription papers to Meta for analysis. Not needed for openly licensed papers.</span>
         </label>
         {message && <Notice tone={message.tone}>{message.text}</Notice>}
         <div className="row wrap">
-          <button className="btn btn-primary" disabled={busy || !key.trim()}>Use this browser</button>
-          <button type="button" className="btn" disabled={busy || (!key.trim() && !browser.enabled)} onClick={test}>{busy ? 'Testing browser…' : 'Test browser connection'}</button>
-          {browser.enabled && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { forgetBrowserElsevier(); setKey(''); setAttest(false); setMessage(null); }}>Forget browser key</button>}
+          <button className="btn btn-primary" disabled={busy || !key.trim()}>Connect</button>
+          <button type="button" className="btn" disabled={busy || (!key.trim() && !browser.enabled)} onClick={test}>{busy ? 'Testing…' : 'Test'}</button>
+          {browser.enabled && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { forgetBrowserElsevier(); setKey(''); setAttest(false); setMessage(null); }}>Disconnect</button>}
         </div>
       </form>
+      <details className="compact-details">
+        <summary>Setup & access limits</summary>
+        <p className="small">In Elsevier’s key settings, add <code>{window.location.origin}</code> to CORS Domains without a trailing slash.</p>
+        <p className="small">Articles download through your browser and are sent to ChemBrain for analysis. Use your campus network or university VPN for subscription access.</p>
+        <a className="small" href="https://dev.elsevier.com/" target="_blank" rel="noreferrer">Get a key ↗</a>
+      </details>
     </div>
   );
 }

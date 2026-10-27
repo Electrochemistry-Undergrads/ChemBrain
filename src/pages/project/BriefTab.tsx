@@ -31,18 +31,18 @@ export function BriefTab({ data, reload }: { data: ProjectData; reload: () => vo
   return (
     <div className="card form describe">
       <label htmlFor="describe-p" className="card-title">
-        Describe your compound or material
+        Your idea
       </label>
       <textarea
         id="describe-p"
         rows={5}
-        placeholder="e.g. A biodegradable, water-resistant packaging film made from starch or chitosan, cast from water below 100 °C."
+        placeholder="e.g. A biodegradable film that keeps food dry."
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         maxLength={3000}
         disabled={stage !== null}
       />
-      <p className="hint">A sentence or two is enough. Mention anything that matters to you (properties, ingredients to avoid, processing limits) in your own words.</p>
+      <p className="hint">Add any materials or limits that matter to you.</p>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="row">
         <button className="btn btn-primary" disabled={stage !== null || description.trim().length < 10} onClick={search}>
@@ -64,12 +64,13 @@ export function SearchedFor({ plan }: { plan: any }) {
   return (
     <details className="searched">
       <summary className="small muted">
-        Searched for: {plan.queries.map((q: { query: string }) => `“${q.query}”`).join(' · ')}
+        Search details
       </summary>
+      <p className="small">{plan.queries.map((q: { query: string }) => `“${q.query}”`).join(' · ')}</p>
       {plan.interpretation && <p className="small">{plan.interpretation}</p>}
       {plan.target_properties?.length > 0 && (
         <p className="small muted">
-          <strong>Target properties inferred:</strong> {plan.target_properties.join('; ')}
+          <strong>Looking for:</strong> {plan.target_properties.join('; ')}
         </p>
       )}
       <p className="hint">{plan.method === 'meta' ? `Planned by ${plan.model ?? 'Meta'}.` : 'Keywords taken from your description.'}</p>

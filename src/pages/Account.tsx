@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useSession } from '../App';
-import { Notice } from '../components/ui';
+import { Details, Notice } from '../components/ui';
 
 export function AccountPage() {
   const { user, refresh } = useSession();
@@ -17,27 +17,24 @@ export function AccountPage() {
   };
   return (
     <section className="page narrow">
-      <p className="eyebrow">Your data</p>
-      <h1 className="page-title">Private workspace</h1>
+      <h1 className="page-title">Settings</h1>
       {user?.guest && (
         <div className="card">
           <p>
-            Your workspace is tied to this browser through a private session cookie; there is no sign-in yet. Projects, documents, credentials and results are visible only to this workspace. Clearing this site’s cookies, or using another browser, starts a new, empty workspace.
+            This workspace belongs to this browser. Clearing site cookies will lose access to it.
           </p>
         </div>
       )}
-      <div className="card">
-        <h2 className="card-title">Data and retention</h2>
+      <Details title="Privacy & storage">
         <ul className="plain">
           <li>Retrieved papers are stored as parsed text, private to your account, and are never shared with other users or used to train models.</li>
           <li>Original files are not kept after parsing unless the server is configured to retain them in private storage.</li>
           <li>Deleting a project deletes its papers, documents, evidence, and reports. Removing a publisher connection deletes the stored credential.</li>
           <li>Analysis uses Meta’s standard API mode, in which Meta states that content is not used to train its models.</li>
         </ul>
-      </div>
-      <div className="card danger-zone">
-        <h2 className="card-title">Delete this workspace</h2>
-        <p className="muted">Permanently deletes every project, every retrieved document, all extracted evidence and reports, and all stored publisher credentials.</p>
+      </Details>
+      <Details title="Delete workspace" className="danger-zone">
+        <p className="muted">Permanently deletes all projects, papers, results and saved keys.</p>
         <label>
           Type <code>{user?.username}</code> to confirm
           <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" />
@@ -46,7 +43,7 @@ export function AccountPage() {
         <button className="btn danger-btn" disabled={confirmText !== user?.username} onClick={del}>
           Delete everything
         </button>
-      </div>
+      </Details>
     </section>
   );
 }

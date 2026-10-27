@@ -3,38 +3,38 @@ export type Tone = 'good' | 'warn' | 'bad' | 'neutral' | 'info';
 export const ACCESS: Record<string, [string, Tone, string]> = {
   unknown: ['Access unknown', 'neutral', 'ChemBrain has not confirmed whether you can read this paper.'],
   open_access: ['Open access', 'good', 'The paper is published under an open licence.'],
-  entitled: ['Entitled', 'good', 'The publisher confirmed your access through your connection.'],
+  entitled: ['Access confirmed', 'good', 'The publisher confirmed your access through your connection.'],
   user_confirmed: ['You can read it', 'good', 'You confirmed you can read this paper (for example through your library).'],
-  not_entitled: ['Not entitled', 'bad', 'The publisher reports that your credentials do not cover this paper.'],
+  not_entitled: ['No access', 'bad', 'The publisher reports that your credentials do not cover this paper.'],
 };
 
 export const RETRIEVAL: Record<string, [string, Tone, string]> = {
-  discovered: ['Discovered', 'neutral', 'Found in search; retrieval has not been attempted.'],
-  abstract_only: ['Abstract only', 'warn', 'Only the abstract was available. Abstracts are not counted as full papers.'],
-  full_text_retrieved: ['Full text retrieved', 'good', 'The complete article was retrieved and its identity verified.'],
-  institutional_connection_required: ['Institutional connection required', 'warn', 'Your subscription is tied to your campus network or library token, which ChemBrain’s cloud servers do not have.'],
-  permission_required: ['Permission required', 'warn', 'Credentials, entitlement, or a publisher agreement is missing.'],
-  retrieval_failed: ['Retrieval failed', 'bad', 'A technical failure or no available source. See the attempt log.'],
+  discovered: ['Not downloaded', 'neutral', 'Found in search; retrieval has not been attempted.'],
+  abstract_only: ['Summary only', 'warn', 'Only the abstract was available. Abstracts are not counted as full papers.'],
+  full_text_retrieved: ['Downloaded', 'good', 'The complete article was retrieved and its identity verified.'],
+  institutional_connection_required: ['Campus access needed', 'warn', 'Your subscription is tied to your campus network or library token, which ChemBrain’s cloud servers do not have.'],
+  permission_required: ['Access needed', 'warn', 'Credentials, entitlement, or a publisher agreement is missing.'],
+  retrieval_failed: ['Download failed', 'bad', 'A technical failure or no available source. See the attempt log.'],
 };
 
 export const PARSE: Record<string, [string, Tone, string]> = {
-  not_parsed: ['Not parsed', 'neutral', ''],
-  parsed: ['Parsed', 'good', 'The complete document was split into sections and chunks.'],
-  parsing_incomplete: ['Parsing incomplete', 'warn', 'Only part of the article body could be read.'],
+  not_parsed: ['Text not ready', 'neutral', ''],
+  parsed: ['Text ready', 'good', 'The complete document was split into sections and chunks.'],
+  parsing_incomplete: ['Partial text', 'warn', 'Only part of the article body could be read.'],
   unreadable: ['Unreadable', 'bad', 'No text layer (likely scanned). OCR is not performed.'],
 };
 
 export const AI: Record<string, [string, Tone, string]> = {
-  open_license: ['AI analysis permitted (open licence)', 'good', 'The open licence permits this processing.'],
-  user_attested: ['AI analysis permitted (you confirmed)', 'good', 'You confirmed your agreement permits analysis with Meta.'],
-  not_confirmed: ['AI analysis not confirmed', 'warn', 'Subscription access alone does not establish permission to send content to an external AI service. Confirm it in Publisher connections or when uploading.'],
+  open_license: ['AI allowed', 'good', 'The open licence permits this processing.'],
+  user_attested: ['AI allowed', 'good', 'You confirmed your agreement permits analysis with Meta.'],
+  not_confirmed: ['AI permission needed', 'warn', 'Subscription access alone does not establish permission to send content to an external AI service. Confirm it in Connections or when uploading.'],
 };
 
 export const ANALYSIS: Record<string, [string, Tone, string]> = {
   not_started: ['Not analysed', 'neutral', ''],
   in_progress: ['Analysing', 'info', ''],
   partial: ['Partially analysed', 'warn', 'Some document windows failed; results may be incomplete.'],
-  analysis_complete: ['Analysis complete', 'good', 'Every chunk of the retrieved document was processed.'],
+  analysis_complete: ['Analyzed', 'good', 'Every chunk of the retrieved document was processed.'],
   failed: ['Analysis failed', 'bad', ''],
 };
 
@@ -45,7 +45,7 @@ export const CATEGORY: Record<string, string> = {
   equipment: 'Equipment',
   method_step: 'Method step',
   condition: 'Condition',
-  characterization: 'Characterisation',
+  characterization: 'Testing',
   result: 'Result',
   hazard: 'Hazard',
   limitation: 'Limitation',

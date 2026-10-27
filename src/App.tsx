@@ -65,7 +65,7 @@ export function App() {
         </main>
         <footer className="footer">
           <span className="footer-brand">ChemBrain</span>
-          <span>Research plans generated from cited sources. Every proposal requires researcher review.</span>
+          <span>Work in progress · Check AI suggestions before use.</span>
         </footer>
       </div>
     </SessionCtx.Provider>
@@ -85,8 +85,8 @@ function Header() {
           <NavLink to="/" end>
             Projects
           </NavLink>
-          <NavLink to="/connections">Publisher connections</NavLink>
-          <NavLink to="/account">Your data</NavLink>
+          <NavLink to="/connections">Connections</NavLink>
+          <NavLink to="/account">Settings</NavLink>
         </nav>
       ) : (
         <div className="status-pill">

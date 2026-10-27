@@ -3,9 +3,9 @@ import { api } from './api';
 export type SearchStage = 'planning' | 'searching' | 'ranking';
 
 export const STAGE_TEXT: Record<SearchStage, string> = {
-  planning: 'Working out what to search for…',
-  searching: 'Searching Crossref, Europe PMC and connected publishers…',
-  ranking: 'Ranking papers by relevance with Meta…',
+  planning: 'Preparing search…',
+  searching: 'Finding papers…',
+  ranking: 'Sorting matches…',
 };
 
 /** One-click search: plan queries from the description, discover papers, then rank them if Meta is available. */

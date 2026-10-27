@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { ACCESS, AI, ANALYSIS, CONNECTOR_NAME, PARSE, PROVIDER_NAME, RETRIEVAL } from '../../lib/labels';
-import { Badge, Drawer, Notice, Spinner, StatusBadge } from '../../components/ui';
+import { Badge, Details, Drawer, Notice, Spinner, StatusBadge } from '../../components/ui';
 import { Coverage } from './Coverage';
 import { SearchedFor } from './BriefTab';
 import type { ProjectData } from '../Project';
@@ -120,53 +120,49 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
   const unscreened = papers.some((p) => p.relevance_method === 'keyword');
 
   return (
-    <div>
-      <Coverage c={data.coverage} />
-      {data.project.brief?.description && (
-        <p className="small muted describe-line">
-          <strong>Your description:</strong> {data.project.brief.description}
-        </p>
-      )}
-      {data.project.searchPlan?.queries?.length > 0 && <SearchedFor plan={data.project.searchPlan} />}
-      {papers.some((p) => p.provider === 'elsevier') && <BrowserElsevier />}
+    <div className="stack">
       <div className="toolbar">
         <label className="sr-only" htmlFor="pf">
           Filter papers
         </label>
-        <input id="pf" placeholder="Filter by title, DOI, journal…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <form className="row" onSubmit={addDoi}>
-          <label className="sr-only" htmlFor="adoi">
-            Add a paper by DOI
-          </label>
-          <input id="adoi" placeholder="Add by DOI" value={doi} onChange={(e) => setDoi(e.target.value)} />
-          <button className="btn" disabled={!doi || busy !== null}>
-            Add
-          </button>
-        </form>
-        {unscreened && (
-          <button className="btn" onClick={screen} disabled={busy !== null || !data.metaConfigured} title={data.metaConfigured ? '' : 'Meta is not configured'}>
-            {busy === 'screen' ? 'Screening…' : 'Screen relevance with Meta'}
-          </button>
-        )}
+        <input id="pf" type="search" placeholder="Search papers…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <button className="btn btn-ghost" onClick={() => selectTop(8)} disabled={busy !== null}>
-          Select top 8
+          Select top {Math.min(8, papers.length)}
         </button>
         {browser.enabled && papers.some((p) => p.selected && p.provider === 'elsevier' && p.doi && p.retrieval_status !== 'full_text_retrieved') && (
           <button className="btn" disabled={busy !== null} onClick={retrieveInBrowser}>
-            {busy === 'browser' ? browserProgress : 'Retrieve Elsevier using this browser'}
+            {busy === 'browser' ? browserProgress : 'Download Elsevier papers'}
           </button>
         )}
         <button className="btn btn-primary" onClick={analyse} disabled={busy !== null || !selected}>
-          Analyse {selected} selected
+          Analyze{selected ? ` (${selected})` : ''}
         </button>
       </div>
+      <div className="row between"><p className="hint">{shown.length} papers · {selected} selected</p><span className="hint">Select papers to include in your analysis.</span></div>
+      <details className="compact-details add-paper">
+        <summary>Add a paper</summary>
+        <form className="row" onSubmit={addDoi}>
+          <label className="grow" htmlFor="adoi">Paper DOI
+            <input id="adoi" placeholder="10.… or https://doi.org/…" value={doi} onChange={(e) => setDoi(e.target.value)} />
+          </label>
+          <button className="btn" disabled={!doi || busy !== null}>Add</button>
+        </form>
+      </details>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-      {papers.length === 0 && <p className="muted empty">No papers yet. Describe your compound in the Describe tab and click Find papers, or add papers by DOI.</p>}
+      {papers.length === 0 && <p className="muted empty">No papers yet. Start a search from Idea, or add a paper above.</p>}
+      {papers.length > 0 && shown.length === 0 && <p className="muted empty">No matching papers.</p>}
       <ul className="paper-list">
         {shown.map((p) => (
           <PaperRow key={p.id} p={p} onToggle={() => toggle(p)} onCanRead={(v) => canRead(p, v)} onUpload={() => setUpload(p)} onRemove={() => remove(p)} />
         ))}
       </ul>
+      <Details title="Search & download details">
+        <Coverage c={data.coverage} />
+        {data.project.brief?.description && <p className="small">{data.project.brief.description}</p>}
+        {data.project.searchPlan?.queries?.length > 0 && <SearchedFor plan={data.project.searchPlan} />}
+        {unscreened && <button className="btn" onClick={screen} disabled={busy !== null || !data.metaConfigured}>{busy === 'screen' ? 'Sorting…' : 'Sort matches with AI'}</button>}
+        {papers.some((p) => p.provider === 'elsevier') && <BrowserElsevier />}
+      </Details>
       <UploadDrawer projectId={id} paper={upload} onClose={() => setUpload(null)} onDone={() => (setUpload(null), load(), reload())} />
     </div>
   );
@@ -183,45 +179,37 @@ function PaperRow({ p, onToggle, onCanRead, onUpload, onRemove }: { p: Paper; on
         <div className="grow">
           <div className="paper-title">{p.title}</div>
           <div className="paper-meta">
-            {p.relevance !== null && (
-              <span className="relevance" title={p.relevance_reason ?? ''}>
-                <span className="rel-bar" style={{ width: `${Math.round(p.relevance * 100)}%` }} />
-                <span>
-                  {Math.round(p.relevance * 100)}% {p.relevance_method === 'meta' ? 'relevance (Meta)' : p.relevance_method === 'keyword' ? 'keyword match' : ''}
-                </span>
-              </span>
-            )}
-            {p.year ?? 'n.d.'} · {p.venue ?? 'Unknown venue'} · {p.provider ? PROVIDER_NAME[p.provider] : p.publisher ?? 'Unknown publisher'}
+            {p.year ?? 'Year unknown'} · {p.provider ? PROVIDER_NAME[p.provider] : p.publisher ?? p.venue ?? 'Unknown publisher'}
             {p.doi && (
               <>
                 {' '}
                 ·{' '}
                 <a href={`https://doi.org/${p.doi}`} target="_blank" rel="noreferrer">
-                  {p.doi}
+                  Open paper ↗
                 </a>
               </>
             )}
           </div>
           <div className="badges">
-            <StatusBadge map={ACCESS} value={p.user_access} />
-            <StatusBadge map={RETRIEVAL} value={p.retrieval_status} />
-            {p.retrieval_status === 'full_text_retrieved' && <StatusBadge map={PARSE} value={p.parse_status} />}
-            {p.document_id && <StatusBadge map={AI} value={p.ai_permission} />}
-            {p.analysis_status !== 'not_started' && <StatusBadge map={ANALYSIS} value={p.analysis_status} />}
+            {p.analysis_status === 'analysis_complete' ? <Badge tone="good">Analyzed</Badge> : p.document_id && p.ai_permission === 'not_confirmed' ? <Badge tone="warn">AI permission needed</Badge> : <StatusBadge map={RETRIEVAL} value={p.retrieval_status} />}
           </div>
         </div>
+        <div className="row paper-actions">
+        {p.retrieval_status !== 'full_text_retrieved' && <button className="btn btn-sm" onClick={onUpload}>Upload PDF</button>}
         <button className="btn btn-ghost btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? 'Less' : 'Details'}
         </button>
+        </div>
       </div>
       {open && (
         <div className="paper-details">
-          {p.relevance_reason && <p className="small muted">Relevance: {p.relevance_reason}</p>}
+          {p.relevance_reason && <p className="small muted">Match: {p.relevance_reason}</p>}
+          <div className="badges"><StatusBadge map={ACCESS} value={p.user_access} /><StatusBadge map={PARSE} value={p.parse_status} />{p.document_id && <StatusBadge map={AI} value={p.ai_permission} />}<StatusBadge map={ANALYSIS} value={p.analysis_status} /></div>
           <p className="abstract">{p.abstract ?? <span className="muted">No abstract available from the discovery sources.</span>}</p>
           {p.retrieval_reason && <p className="small">{p.retrieval_reason}</p>}
           {p.retrieval_log.length > 0 && (
             <div>
-              <p className="small muted">Retrieval attempts</p>
+              <p className="small muted">Download history</p>
               <ul className="plain small attempts">
                 {p.retrieval_log.map((a, i) => (
                   <li key={i}>
@@ -251,7 +239,7 @@ function PaperRow({ p, onToggle, onCanRead, onUpload, onRemove }: { p: Paper; on
             ) : null}
             {p.retrieval_status !== 'full_text_retrieved' && (
               <button className="btn btn-sm" onClick={onUpload}>
-                Upload the PDF or XML
+                Upload PDF or XML
               </button>
             )}
             {p.landing_url && (
@@ -295,13 +283,13 @@ function UploadDrawer({ projectId, paper, onClose, onDone }: { projectId: string
     }
   };
   return (
-    <Drawer open onClose={onClose} title="Upload a paper you can read">
+    <Drawer open onClose={onClose} title="Upload paper">
       <form className="form" onSubmit={submit}>
         <p>
           <strong>{paper.title}</strong>
         </p>
         <p className="small muted">
-          Use this when ChemBrain cannot retrieve a paper you are entitled to read — for example a Wiley or Elsevier subscription article available to you on campus. ChemBrain checks that the file matches this paper’s DOI or title and that it is a full article, not an abstract or login page.
+          Upload your copy of the full article. The file must match this paper.
         </p>
         <label>
           PDF or XML file (up to 30 MB)
@@ -309,15 +297,15 @@ function UploadDrawer({ projectId, paper, onClose, onDone }: { projectId: string
         </label>
         <label className="check">
           <input type="checkbox" checked={canRead} onChange={(e) => setCanRead(e.target.checked)} required />
-          <span>I am entitled to read this paper and obtained this file through my own authorised access.</span>
+          <span>I have permission to read and upload this paper.</span>
         </label>
         <label className="check">
           <input type="checkbox" checked={ai} onChange={(e) => setAi(e.target.checked)} />
-          <span>My licence for this paper permits analysis with an external AI service (Meta). Not needed for open-licence papers.</span>
+          <span>My licence allows sending this paper to Meta for analysis. Not needed for openly licensed papers.</span>
         </label>
         {err && <Notice tone="bad">{err}</Notice>}
         <button className="btn btn-primary" disabled={busy || !file || !canRead}>
-          {busy ? 'Checking and parsing…' : 'Upload'}
+          {busy ? 'Uploading…' : 'Upload'}
         </button>
       </form>
     </Drawer>

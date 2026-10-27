@@ -36,6 +36,13 @@ export function Notice({ tone = 'info', children }: { tone?: Tone; children: Rea
   );
 }
 
+export function Details({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
+  return <details className={`card disclosure ${className}`}>
+    <summary>{title}</summary>
+    <div className="disclosure-body">{children}</div>
+  </details>;
+}
+
 export function Spinner({ label = 'Loading' }: { label?: string }) {
   return (
     <span className="spinner" role="status" aria-label={label}>

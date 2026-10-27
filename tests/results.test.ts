@@ -53,7 +53,7 @@ describe('synthesis emphasis and equipment filters', () => {
     expect(schema.properties.approaches.items.required).toEqual(expect.arrayContaining(['synthesis_method', 'equipment']));
     const legacy = resultsFixture.approaches.map(({ equipment, synthesis_method, ...a }) => a);
     expect(reportedInstruments(legacy)).toEqual([]);
-    expect(renderToStaticMarkup(createElement(InstrumentResults, { approaches: legacy, citations: () => null }))).toContain('Run a new analysis from Workspace');
+    expect(renderToStaticMarkup(createElement(InstrumentResults, { approaches: legacy, citations: () => null }))).toContain('Run a new analysis from Analysis');
   });
 
   it('keeps bold methods and equipment citations in Markdown exports, including old reports', () => {

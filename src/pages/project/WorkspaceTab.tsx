@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { CATEGORY, CHECK, CONNECTOR_NAME } from '../../lib/labels';
-import { Badge, Notice, Spinner } from '../../components/ui';
+import { CATEGORY, CHECK } from '../../lib/labels';
+import { Badge, Details, Notice, Spinner } from '../../components/ui';
 import { EvidenceViewer } from '../../components/EvidenceViewer';
 import { Coverage } from './Coverage';
 import type { Paper } from './PapersTab';
@@ -39,10 +39,10 @@ export interface Evidence {
 }
 
 const STAGES: [string, string][] = [
-  ['retrieve', 'Retrieve and parse'],
-  ['extract', 'Extract evidence (Meta)'],
-  ['check', 'Check evidence (Meta)'],
-  ['compare', 'Compare and propose (Meta)'],
+  ['retrieve', 'Download papers'],
+  ['extract', 'Read papers'],
+  ['check', 'Check sources'],
+  ['compare', 'Write results'],
 ];
 
 export function WorkspaceTab({ data, reload }: { data: ProjectData; reload: () => void }) {
@@ -113,18 +113,18 @@ export function WorkspaceTab({ data, reload }: { data: ProjectData; reload: () =
   const paperTitle = (pid: string | null) => papers.find((p) => p.id === pid)?.title ?? '';
 
   return (
-    <div>
-      <Coverage c={data.coverage} />
+    <div className="stack">
       <div className="card">
         <div className="row between">
-          <h2 className="card-title">Analysis job</h2>
+          <h2 className="card-title">Analysis</h2>
           {job && <JobBadge status={job.status} />}
         </div>
+        {!data.metaConfigured && <Notice tone="warn">AI isn’t set up yet. Analysis will pause until it is.</Notice>}
         {!job ? (
           <div>
-            <p className="muted">No analysis yet. Select papers in the Papers tab, then start the analysis.</p>
+            <p className="muted">{papers.length} papers selected.</p>
             <button className="btn btn-primary" onClick={() => control('start')}>
-              Analyse selected papers
+              Start analysis
             </button>
           </div>
         ) : (
@@ -139,16 +139,16 @@ export function WorkspaceTab({ data, reload }: { data: ProjectData; reload: () =
                     <span className="stage-bar" aria-hidden="true">
                       <span style={{ width: total ? `${(100 * done) / total}%` : '0%' }} />
                     </span>
-                    <span className="stage-count">{total ? `${done}/${total}` : k === 'extract' || k === 'check' ? 'queued after retrieval' : '—'}</span>
+                    <span className="stage-count">{total ? `${done}/${total}` : 'Queued'}</span>
                   </li>
                 );
               })}
             </ol>
             <p className="small muted" aria-live="polite">
-              Model tokens used: {job.tokensUsed.toLocaleString()} of {job.tokenBudget.toLocaleString()} budget.
-              {progress.nextRunAt ? ` Waiting for a publisher rate limit until ${new Date(progress.nextRunAt).toLocaleTimeString()}.` : ''}
-              {job.status === 'running' ? ' Keep this tab open while the analysis runs; it resumes where it left off if interrupted.' : ''}
+              {progress.nextRunAt ? 'Waiting for the publisher… ' : ''}
+              {job.status === 'running' ? 'Keep this tab open while analysis runs.' : ''}
             </p>
+            <details className="compact-details"><summary>Usage</summary><p className="small">{job.tokensUsed.toLocaleString()} of {job.tokenBudget.toLocaleString()} AI tokens used.</p></details>
             {job.error && <Notice tone="warn">{job.error}</Notice>}
             {(progress.failures ?? []).length > 0 && (
               <details className="failures">
@@ -175,7 +175,7 @@ export function WorkspaceTab({ data, reload }: { data: ProjectData; reload: () =
               )}
               {['complete', 'complete_with_errors', 'cancelled'].includes(job.status) && (
                 <button className="btn" onClick={() => control('start')}>
-                  Re-run analysis
+                  Run again
                 </button>
               )}
               {['complete', 'complete_with_errors'].includes(job.status) && (
@@ -189,11 +189,10 @@ export function WorkspaceTab({ data, reload }: { data: ProjectData; reload: () =
         {err && <Notice tone="bad">{err}</Notice>}
       </div>
 
-      <div className="grid-2 wide-right">
-        <RetrievedPapers papers={papers} projectId={id} />
-        <EvidenceTable evidence={evidence} papers={papers} onOpen={setView} />
-      </div>
       <Questions projectId={id} disabled={!data.metaConfigured || !evidence.length} onOpen={setView} />
+      <Details title={`Selected papers (${papers.length})`}><RetrievedPapers papers={papers} projectId={id} /></Details>
+      <Details title="Source data"><EvidenceTable evidence={evidence} papers={papers} onOpen={setView} /></Details>
+      <Details title="Paper status"><Coverage c={data.coverage} /></Details>
       <EvidenceViewer projectId={id} target={view} onClose={() => setView(null)} />
     </div>
   );
@@ -226,11 +225,11 @@ function RetrievedPapers({ papers, projectId }: { papers: Paper[]; projectId: st
           <li key={p.id}>
             <div className="small strong">{p.title}</div>
             <div className="small muted">
-              {p.retrieval_status.replace(/_/g, ' ')} {p.connector ? `· ${CONNECTOR_NAME[p.connector] ?? p.connector}` : ''} · {p.analysis_status.replace(/_/g, ' ')} · {p.evidence_count} evidence items
+              {p.evidence_count} source notes
             </div>
             {p.document_id && (
               <button className="btn btn-ghost btn-sm" onClick={() => open(p)}>
-                Read retrieved text
+                Read paper
               </button>
             )}
           </li>
@@ -240,7 +239,7 @@ function RetrievedPapers({ papers, projectId }: { papers: Paper[]; projectId: st
         <div className="drawer-backdrop" onClick={() => setDoc(null)}>
           <div className="drawer" role="dialog" aria-modal="true" aria-label="Retrieved document" onClick={(e) => e.stopPropagation()}>
             <div className="drawer-head">
-              <h2>{doc.title}</h2>
+                <h2>{doc.title}</h2>
               <button className="btn btn-ghost" onClick={() => setDoc(null)} aria-label="Close">
                 ✕
               </button>
@@ -278,7 +277,7 @@ function EvidenceTable({ evidence, papers, onOpen }: { evidence: Evidence[]; pap
   return (
     <div className="card">
       <div className="row between">
-        <h2 className="card-title">Extracted evidence</h2>
+        <h2 className="card-title">Source notes</h2>
         <span className="small muted">
           {evidence.length - rejected} verified · {rejected} rejected
         </span>
@@ -311,7 +310,7 @@ function EvidenceTable({ evidence, papers, onOpen }: { evidence: Evidence[]; pap
         </label>
       </div>
       {!evidence.length ? (
-        <p className="muted">Evidence appears here as each paper is analysed.</p>
+        <p className="muted">Notes appear as papers are analyzed.</p>
       ) : (
         <div className="table-wrap">
           <table className="table">
@@ -319,7 +318,7 @@ function EvidenceTable({ evidence, papers, onOpen }: { evidence: Evidence[]; pap
               <tr>
                 <th scope="col">Type</th>
                 <th scope="col">Item</th>
-                <th scope="col">Value (as reported)</th>
+                <th scope="col">Value</th>
                 <th scope="col">Check</th>
                 <th scope="col">Source</th>
               </tr>
@@ -386,13 +385,12 @@ function Questions({ projectId, disabled, onOpen }: { projectId: string; disable
   };
   return (
     <div className="card">
-      <h2 className="card-title">Ask the sources</h2>
-      <p className="muted small">Answers use only passages from your retrieved papers, with citations you can open.</p>
+      <h2 className="card-title">Ask your papers</h2>
       <form className="row" onSubmit={ask}>
         <label className="sr-only" htmlFor="ask">
           Question
         </label>
-        <input id="ask" className="grow" placeholder="e.g. Which plasticiser concentrations gave the lowest water vapour permeability?" value={q} onChange={(e) => setQ(e.target.value)} disabled={disabled} />
+        <input id="ask" className="grow" placeholder="Ask a question about these papers…" value={q} onChange={(e) => setQ(e.target.value)} disabled={disabled} />
         <button className="btn btn-primary" disabled={disabled || busy || q.length < 5}>
           {busy ? 'Reading…' : 'Ask'}
         </button>

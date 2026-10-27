@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:full": "npm run build && wrangler pages dev dist --d1 DB --local",
+    "dev:full": "npm run build && wrangler pages dev dist --local",
     "build": "node scripts/write-build-info.mjs && tsc -p tsconfig.json --noEmit && vite build && npm run build:functions",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

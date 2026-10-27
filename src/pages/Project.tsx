@@ -41,7 +41,7 @@ export function ProjectPage() {
     <section className="page">
       <div className="page-head">
         <div className="grow">
-          <p className="eyebrow">Project {p.isDemo && <Badge tone="info">Demonstration · bundled CC BY papers, not live publisher calls</Badge>}</p>
+          {p.isDemo && <Badge tone="info">Example project</Badge>}
           {editing ? (
             <form
               className="row"
@@ -58,7 +58,7 @@ export function ProjectPage() {
             </form>
           ) : (
             <h1 className="page-title">
-              {p.name}{' '}
+              {p.isDemo ? p.name.replace(/^Demonstration · /, '') : p.name}{' '}
               <button
                 className="btn btn-ghost btn-sm"
                 onClick={() => {
@@ -72,12 +72,11 @@ export function ProjectPage() {
           )}
         </div>
       </div>
-      {!data.metaConfigured && <Notice tone="warn">Meta analysis is not configured yet. You can search for, retrieve and read papers now (search terms come from your description’s keywords); evidence extraction and proposals will start once it is.</Notice>}
       <nav className="tabs tabs-line" aria-label="Project sections">
-        {tab('describe', '1 · Describe')}
-        {tab('papers', '2 · Papers')}
-        {tab('workspace', '3 · Workspace')}
-        {tab('results', '4 · Results')}
+        {tab('describe', 'Idea')}
+        {tab('papers', 'Papers')}
+        {tab('workspace', 'Analysis')}
+        {tab('results', 'Results')}
       </nav>
       <Routes>
         <Route index element={<Navigate to={p.searchPlan || p.isDemo ? 'papers' : 'describe'} replace />} />
