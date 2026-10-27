@@ -99,14 +99,22 @@ describe('Elsevier connector', () => {
     expect(checks.find((c) => c.name === 'Subscription entitlement')?.status).toBe('warn');
   });
   it('accepts Article Retrieval when this key lacks Entitlement API permission', async () => {
-    const { f } = mockFetch((u) => u.pathname.includes('entitlement')
-      ? new Response('', { status: 403 })
-      : new Response('<full-text-retrieval-response><originalText/></full-text-retrieval-response>'));
-    const ctx = ctxWith(f, { elsevier: { apiKey: 'key' } });
-    expect((await elsevierRetrieve(ctx, paper('10.1016/j.x.2020.1'))).status).toBe('full_text');
-    const checks = await testElsevier(ctx);
-    expect(checks.find((c) => c.name === 'API key')?.status).toBe('pass');
-    expect(checks.find((c) => c.name === 'Subscription entitlement')?.message).toMatch(/Entitlement API permission/);
+    for (const status of [401, 403]) {
+      const { f } = mockFetch((u) => u.pathname.includes('entitlement')
+        ? new Response('', { status })
+        : new Response('<full-text-retrieval-response><originalText/></full-text-retrieval-response>'));
+      const ctx = ctxWith(f, { elsevier: { apiKey: 'key' } });
+      expect((await elsevierRetrieve(ctx, paper('10.1016/j.x.2020.1'))).status).toBe('full_text');
+      const checks = await testElsevier(ctx);
+      expect(checks.find((c) => c.name === 'API key')?.status).toBe('pass');
+      expect(checks.find((c) => c.name === 'Subscription entitlement')?.status).toBe('warn');
+    }
+  });
+  it('still rejects credentials that the Article Retrieval API rejects', async () => {
+    const { f } = mockFetch(() => new Response('', { status: 401 }));
+    const ctx = ctxWith(f, { elsevier: { apiKey: 'invalid-key' } });
+    expect((await elsevierRetrieve(ctx, paper('10.1016/j.x.2020.1'))).status).toBe('credentials_invalid');
+    expect((await testElsevier(ctx)).find((c) => c.name === 'API key')?.status).toBe('fail');
   });
   it('reports missing credentials plainly', async () => {
     const r = await elsevierRetrieve(ctxWith(mockFetch(() => new Response('')).f), paper('10.1016/j.x.2020.1'));

@@ -65,7 +65,6 @@ export async function elsevierRetrieve(ctx: ConnectorContext, paper: PaperRef): 
       // Article Retrieval enforces entitlement itself. A broken preflight must not block it.
       ent = { status: (e as UpstreamError).status!, entitled: null };
     }
-    if (ent.status === 401) return { connector, status: 'credentials_invalid', reason: 'Elsevier rejected the API key or institutional token.' };
     if (ent.status === 404) return { connector, status: 'not_found', reason: 'Elsevier does not recognise this DOI.' };
     if (ent.entitled === false) {
       return ctx.creds.elsevier.instToken
@@ -113,7 +112,6 @@ export async function testElsevier(ctx: ConnectorContext): Promise<TestCheck[]> 
       if (!temporaryError(e)) throw e;
       oa = { status: (e as UpstreamError).status!, entitled: null };
     }
-    if (oa.status === 401) return [{ name: 'API key', status: 'fail', message: 'Elsevier rejected the API key or institutional token (HTTP 401).' }];
     if (oa.status === 200 && oa.entitled !== null) {
       checks.push({ name: 'API key', status: 'pass', message: 'Elsevier accepted the API key.' });
     } else {
