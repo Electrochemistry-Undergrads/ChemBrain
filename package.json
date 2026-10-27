@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "dev:full": "npm run build && wrangler pages dev dist --d1 DB --local",
-    "build": "node scripts/write-build-info.mjs && tsc -p tsconfig.json --noEmit && vite build",
+    "build": "node scripts/write-build-info.mjs && tsc -p tsconfig.json --noEmit && vite build && npm run build:functions",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "scan:secrets": "node scripts/scan-secrets.mjs",
@@ -17,7 +17,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply chembrain --remote",
     "test:live": "vitest run --config vitest.live.config.ts",
     "check": "npm run typecheck && npm test && npm run build && npm run scan:secrets",
-    "demo:refresh": "node scripts/fetch-demo-papers.mjs"
+    "demo:refresh": "node scripts/fetch-demo-papers.mjs",
+    "build:functions": "wrangler pages functions build --outdir dist/_worker.js --minify --compatibility-date 2026-10-01 --compatibility-flags nodejs_compat"
   },
   "dependencies": {
     "react": "19.3.0",

@@ -22,6 +22,9 @@ const findings = [];
 const scan = (path, text) => {
   for (const [name, re] of patterns) {
     if (name === 'Email address' && emailAllowed.has(path)) continue;
+    // The server bundle is never served publicly (Pages does not expose _worker.js), and minified
+    // code produces random "a@b.cd"-like strings; credential patterns still apply to it.
+    if (name === 'Email address' && path.includes('_worker.js')) continue;
     const m = re.exec(text);
     if (m && !/example|placeholder|test-key-not-real|LLM_1_x\b/i.test(m[0])) findings.push(`${path}: ${name}`);
   }

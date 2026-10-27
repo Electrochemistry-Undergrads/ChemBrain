@@ -13,6 +13,8 @@ Cloudflare Pages Function  functions/api/[[path]].ts  →  server/api/router.ts
    └── Meta Model API (server secret MODEL_API_KEY): https://api.meta.ai/v1/chat/completions
 ```
 
+`npm run build` bundles the Functions itself with the pinned Wrangler version (`wrangler pages functions build --outdir dist/_worker.js`). Pages then serves that bundle as-is ("advanced mode") instead of re-bundling `functions/` in its build image. This matters because the build image's bundler mis-compiles pdf.js class static blocks: PDF parsing failed in production until this step was added. `public/_routes.json` limits the Worker to `/api/*`, so static assets never invoke it.
+
 There is no separate backend or background Worker. Long work is split into small resumable tasks (see *Job orchestration*), so every request stays within the Pages Functions limits, and the only thing deployed is the Pages project. The retired standalone Worker named `chembrain` is unrelated and stays disabled.
 
 ## Modules

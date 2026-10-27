@@ -80,9 +80,18 @@ function joinLines(lines: string[]) {
 }
 
 export async function parsePdf(bytes: Uint8Array): Promise<ParsedDocument> {
-  const { getDocumentProxy, extractTextItems } = await import('unpdf');
-  const pdf = await getDocumentProxy(new Uint8Array(bytes), { isEvalSupported: false, disableFontFace: true } as never);
-  const { totalPages, items } = await extractTextItems(pdf);
+  let pdf: Awaited<ReturnType<typeof import('unpdf')['getDocumentProxy']>>;
+  let totalPages: number;
+  let items: { str: string; x: number; width: number; fontSize: number; hasEOL: boolean }[][];
+  try {
+    const { getDocumentProxy, extractTextItems } = await import('unpdf');
+    pdf = await getDocumentProxy(new Uint8Array(bytes), { isEvalSupported: false, disableFontFace: true } as never);
+    ({ totalPages, items } = await extractTextItems(pdf));
+  } catch (e) {
+    // Keep internal parser errors out of user-facing messages.
+    console.error('pdf parse failed', e instanceof Error ? e.message.slice(0, 200) : typeof e);
+    throw new Error('The PDF could not be read. It may be damaged, password-protected, or use features the server’s PDF reader does not support.');
+  }
   const pages: PdfLine[][] = items.map((pageItems) => {
     const lines: PdfLine[] = [];
     let cur = '';
