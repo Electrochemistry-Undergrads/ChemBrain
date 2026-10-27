@@ -1,8 +1,8 @@
 # ChemBrain
 
-ChemBrain turns a desired chemical product or material into a research-backed development proposal. A researcher describes the goal ("a biodegradable, water-resistant packaging film"). ChemBrain then:
+ChemBrain turns a desired chemical product or material into a research-backed development proposal. A researcher types a sentence or two describing their compound or material ("a biodegradable, water-resistant packaging film made from starch, cast from water") and clicks **Find papers**. There are no forms of parameters to fill in. ChemBrain then:
 
-1. plans literature searches with Meta's model,
+1. plans literature searches with Meta's model, inferring target properties and constraints from the description (keywords from the description are used when Meta is not configured),
 2. discovers papers (Crossref, Europe PMC, Springer Nature),
 3. retrieves complete papers through the researcher's **own** publisher access,
 4. parses them into sections and chunks that keep their section, page, and table references,
@@ -88,12 +88,12 @@ npm run test:live
 ## Hackathon demonstration walkthrough
 
 1. Open https://chembrain.pages.dev/. Your private workspace is created automatically.
-2. Click **Open a demonstration project**. It contains four real CC BY 4.0 papers on water-resistant biodegradable films, bundled from Europe PMC and clearly labelled as a demonstration (not live publisher calls). The brief is pre-filled.
+2. Click **Open a demonstration project**. It contains four real CC BY 4.0 papers on water-resistant biodegradable films, bundled from Europe PMC and clearly labelled as a demonstration (not live publisher calls). The description is pre-filled.
 3. **Workspace → Analyse selected papers.** Watch the stages: retrieve and parse, then extract, check, and compare (each Meta stage is a live call). The coverage bar shows discovered, readable, retrieved, parsed, and analysed counts.
 4. In **Extracted evidence**, click any source link. The drawer shows the paper, section, page or table, and the passage with the quote highlighted. Tick **Show rejected items** to see what verification threw out.
 5. **Results** shows the assessment, ranked approaches, ingredient, method, and performance comparisons (with comparability warnings), conflicts, missing evidence, ChemBrain's own adaptations (labelled as not published), next experiments, and what the sources do not establish. Every green number opens its passage. Use **Export Markdown** or **Export JSON**.
 6. Ask a question in **Ask the sources**, e.g. "Which plasticiser concentration gave the lowest water vapour permeability?"
-7. To show live retrieval, create a new project, write a brief, **Plan search with Meta → Find papers**, and connect a publisher under **Publisher connections** (each card has a live **Test connection**).
+7. To show live discovery, type a description of a compound on the start page and click **Find papers**. ChemBrain plans the queries, searches, ranks the results, and opens the paper list, all in one step. The queries it used are shown under **Searched for**. Connect a publisher under **Publisher connections**; each card has a live **Test connection**.
 
 ## Known limitations
 

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Badge, Notice, Spinner } from '../components/ui';
+import { runSearch, STAGE_TEXT, type SearchStage } from '../lib/search';
 
 interface ProjectRow {
   id: string;
@@ -15,7 +16,8 @@ interface ProjectRow {
 
 export function Dashboard() {
   const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [stage, setStage] = useState<SearchStage | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -26,15 +28,20 @@ export function Dashboard() {
     load();
   }, []);
 
-  const create = async (e: FormEvent) => {
+  const search = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
+    setError('');
+    let projectId: string | null = null;
     try {
-      const r = await api('/api/projects', { body: { name } });
-      nav(`/projects/${r.project.id}`);
+      projectId = (await api('/api/projects', { body: { description } })).project.id;
+      await runSearch(projectId!, setStage);
+      nav(`/projects/${projectId}/papers`);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
+      setStage(null);
+      if (projectId) load();
     }
   };
   const demo = async () => {
@@ -102,17 +109,29 @@ export function Dashboard() {
       <h2 className="section-title">Your projects</h2>
       {error && <Notice tone="bad">{error}</Notice>}
       <div className="grid-2">
-        <form className="card" onSubmit={create}>
-          <h2 className="card-title">New project</h2>
-          <p className="muted">Start from a product or material you want to develop.</p>
-          <label className="sr-only" htmlFor="new-name">
-            Project name
+        <form className="card" onSubmit={search}>
+          <label htmlFor="describe" className="card-title">
+            Describe your compound or material
           </label>
+          <textarea
+            id="describe"
+            rows={4}
+            placeholder="e.g. A biodegradable, water-resistant packaging film made from starch or chitosan, cast from water below 100 °C."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={3000}
+            disabled={busy}
+          />
+          <p className="hint">A sentence or two is enough. ChemBrain works out the search terms, finds papers, and ranks them.</p>
           <div className="row">
-            <input id="new-name" placeholder="e.g. Water-resistant biodegradable film" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
-            <button className="btn btn-primary" disabled={busy}>
-              Create
+            <button className="btn btn-primary" disabled={busy || description.trim().length < 10}>
+              {busy ? 'Searching…' : 'Find papers'}
             </button>
+            {stage && (
+              <span className="small muted" role="status" aria-live="polite">
+                <Spinner label="Searching" /> {STAGE_TEXT[stage]}
+              </span>
+            )}
           </div>
         </form>
         <div className="card card-accent">

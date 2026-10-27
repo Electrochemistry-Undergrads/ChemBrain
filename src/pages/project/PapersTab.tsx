@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { ACCESS, AI, ANALYSIS, CONNECTOR_NAME, PARSE, PROVIDER_NAME, RETRIEVAL } from '../../lib/labels';
 import { Badge, Drawer, Notice, Spinner, StatusBadge } from '../../components/ui';
 import { Coverage } from './Coverage';
+import { SearchedFor } from './BriefTab';
 import type { ProjectData } from '../Project';
 
 export interface Paper {
@@ -92,6 +93,12 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
   return (
     <div>
       <Coverage c={data.coverage} />
+      {data.project.brief?.description && (
+        <p className="small muted describe-line">
+          <strong>Your description:</strong> {data.project.brief.description}
+        </p>
+      )}
+      {data.project.searchPlan?.queries?.length > 0 && <SearchedFor plan={data.project.searchPlan} />}
       <div className="toolbar">
         <label className="sr-only" htmlFor="pf">
           Filter papers
@@ -119,7 +126,7 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
         </button>
       </div>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-      {papers.length === 0 && <p className="muted empty">No papers yet. Plan a search from the Brief tab, or add papers by DOI.</p>}
+      {papers.length === 0 && <p className="muted empty">No papers yet. Describe your compound in the Describe tab and click Find papers, or add papers by DOI.</p>}
       <ul className="paper-list">
         {shown.map((p) => (
           <PaperRow key={p.id} p={p} onToggle={() => toggle(p)} onCanRead={(v) => canRead(p, v)} onUpload={() => setUpload(p)} onRemove={() => remove(p)} />

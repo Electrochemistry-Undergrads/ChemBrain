@@ -5,31 +5,24 @@ import { DEMO_PAPERS } from '../demo/papers.generated';
 import { ApiError, json } from '../http/respond';
 import { metaConfigured, MetaError } from '../meta/client';
 import { planSearch, screenCandidates } from '../jobs/analysis';
+import { keywordPlan } from '../search/keywords';
 import { newId, normalizeDoi, nowIso, parseJson } from '../util';
 import { coverage, ownedProject } from './access';
 import type { Route } from './router';
 
-const Brief = z.object({
-  product: z.string().trim().min(3).max(500),
-  targetProperties: z.string().max(2000).default(''),
-  intendedUse: z.string().max(1000).default(''),
-  excluded: z.string().max(1000).default(''),
-  equipment: z.string().max(1000).default(''),
-  constraints: z.string().max(1000).default(''),
-  costPreference: z.string().max(500).default(''),
-  sustainabilityPreference: z.string().max(500).default(''),
-});
+/** The researcher's brief is a single free-text description of the compound or material. */
+const Brief = z.object({ description: z.string().trim().min(10).max(3000) });
 
 const DEMO_BRIEF: z.infer<typeof Brief> = {
-  product: 'A biodegradable, water-resistant packaging film',
-  targetProperties: 'Low water vapour permeability, low water solubility, high water contact angle, adequate tensile strength and elongation for flexible packaging',
-  intendedUse: 'Flexible food packaging for dry or moderately humid foods',
-  excluded: 'Petroleum-based polymers; fluorinated coatings',
-  equipment: 'Solution casting, hot plate stirrer, drying oven, tensile tester, contact-angle goniometer',
-  constraints: 'Processing below 100 °C; film-forming from aqueous solutions preferred',
-  costPreference: 'Prefer low-cost, food-grade ingredients',
-  sustainabilityPreference: 'Bio-based and compostable ingredients',
+  description:
+    'A biodegradable, water-resistant packaging film for dry foods, made from bio-based ingredients by solution casting below 100 °C. It should have low water vapour permeability and stay flexible.',
 };
+
+/** Short project name from the first clause of a description. */
+function nameFrom(description: string) {
+  const first = description.split(/[.;\n]/)[0].trim();
+  return first.length > 70 ? `${first.slice(0, 67).replace(/\s+\S*$/, '')}…` : first || 'Untitled project';
+}
 
 const MAX_DISCOVERED = 300;
 
@@ -53,11 +46,19 @@ export const projectRoutes: Route[] = [
     method: 'POST',
     path: '/api/projects',
     handler: async ({ env, user, body }) => {
-      const { name } = await body<{ name?: string }>();
-      const n = (name ?? '').trim().slice(0, 120) || 'Untitled project';
+      const { name, description } = await body<{ name?: string; description?: string }>();
+      let brief: z.infer<typeof Brief> | null = null;
+      if (description !== undefined) {
+        const parsed = Brief.safeParse({ description });
+        if (!parsed.success) throw new ApiError(400, 'bad_brief', 'Describe your compound or material in at least a few words.');
+        brief = parsed.data;
+      }
+      const n = (name ?? '').trim().slice(0, 120) || (brief ? nameFrom(brief.description) : 'Untitled project');
       const id = newId('prj');
       const now = nowIso();
-      await env.DB.prepare('INSERT INTO projects (id, owner_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').bind(id, user.id, n, now, now).run();
+      await env.DB.prepare('INSERT INTO projects (id, owner_id, name, brief_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(id, user.id, n, brief ? JSON.stringify(brief) : null, now, now)
+        .run();
       return json({ project: { id, name: n } }, 201);
     },
   },
@@ -113,7 +114,7 @@ export const projectRoutes: Route[] = [
       }
       if (b.brief !== undefined) {
         const parsed = Brief.safeParse(b.brief);
-        if (!parsed.success) throw new ApiError(400, 'bad_brief', 'Describe the desired product or material (at least a few words).');
+        if (!parsed.success) throw new ApiError(400, 'bad_brief', 'Describe your compound or material in at least a few words.');
         await env.DB.prepare('UPDATE projects SET brief_json = ?, updated_at = ? WHERE id = ? AND owner_id = ?').bind(JSON.stringify(parsed.data), nowIso(), params.id, user.id).run();
       }
       return json({ ok: true });
@@ -136,8 +137,14 @@ export const projectRoutes: Route[] = [
     path: '/api/projects/:id/plan',
     handler: async ({ env, user, params, fetch }) => {
       const p = await ownedProject(env, user.id, params.id);
-      const brief = parseJson(p.brief_json, null);
-      if (!brief) throw new ApiError(400, 'no_brief', 'Save the product brief first.');
+      const brief = parseJson<{ description?: string } | null>(p.brief_json, null);
+      if (!brief?.description) throw new ApiError(400, 'no_brief', 'Describe your compound or material first.');
+      if (!metaConfigured(env)) {
+        // Without Meta, search with keywords from the description (clearly labelled as such).
+        const plan = { ...keywordPlan(brief.description), method: 'keywords', createdAt: nowIso() };
+        await env.DB.prepare('UPDATE projects SET search_plan_json = ?, updated_at = ? WHERE id = ? AND owner_id = ?').bind(JSON.stringify(plan), nowIso(), p.id, user.id).run();
+        return json({ plan });
+      }
       try {
         const res = await planSearch(env, { ownerId: user.id, projectId: p.id, stage: 'search_planning' }, brief, fetch);
         const plan = { ...res.data, method: 'meta', model: res.model, createdAt: nowIso() };
@@ -178,8 +185,8 @@ export const projectRoutes: Route[] = [
       const fresh = candidates.filter((c) => !have.has(c.doi ?? c.title.toLowerCase())).slice(0, Math.max(0, MAX_DISCOVERED - existing.results.length));
       const now = nowIso();
       // Rank by simple term overlap first; Meta screening refines it in /screen.
-      const brief = parseJson<Record<string, string>>(p.brief_json, {});
-      const terms = new Set(`${brief.product ?? ''} ${brief.targetProperties ?? ''} ${queries.join(' ')}`.toLowerCase().match(/[a-z]{4,}/g) ?? []);
+      const brief = parseJson<{ description?: string }>(p.brief_json, {});
+      const terms = new Set(`${brief.description ?? ''} ${queries.join(' ')}`.toLowerCase().match(/[a-z]{4,}/g) ?? []);
       const lexical = (t: string) => {
         const words = new Set(t.toLowerCase().match(/[a-z]{4,}/g) ?? []);
         let hit = 0;
@@ -192,7 +199,7 @@ export const projectRoutes: Route[] = [
              relevance, relevance_reason, relevance_method, user_access, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'keyword', ?, ?, ?)`,
         ).bind(
           newId('pap'), p.id, user.id, c.doi, c.title.slice(0, 500), c.authors, c.year, c.venue, c.publisher ?? publisherName(c.doi), c.abstract?.slice(0, 6000) ?? null, c.landingUrl, c.license, c.source,
-          Math.round(lexical(`${c.title} ${c.abstract ?? ''}`) * 100) / 100, 'Keyword overlap with the brief and queries (not yet screened by Meta)', c.license && /creativecommons|cc by|open access/i.test(c.license) ? 'open_access' : 'unknown', now, now,
+          Math.round(lexical(`${c.title} ${c.abstract ?? ''}`) * 100) / 100, 'Keyword overlap with your description (not yet ranked by Meta)', c.license && /creativecommons|cc by|open access/i.test(c.license) ? 'open_access' : 'unknown', now, now,
         ),
       );
       for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
