@@ -58,7 +58,9 @@ describe('demo workflow with fixture Meta responses', () => {
     const fabricatedIds = new Set(fabricated.map((e: any) => e.id));
 
     const rep = (await c.call('GET', `/api/projects/${pid}/report`)).data.report.report;
-    expect(rep.validation.removedReferences).toBe(3); // P99, E9999 twice
+    expect(rep.validation.removedReferences).toBe(5); // P99, E9999 four times
+    expect(rep.proposal.approaches[0].synthesis_method).toBeNull(); // route with an invalid citation is dropped
+    expect(rep.proposal.approaches[0].equipment).toEqual([]); // equipment with an invalid citation is dropped
     expect(rep.proposal.approaches[0].performance).toEqual([]); // value with only an invalid citation is dropped
     expect(rep.validation.unsupportedStatements.join(' ')).toMatch(/WVP/);
     expect(Object.values(rep.evidence).some((id) => fabricatedIds.has(id))).toBe(false);

@@ -5,6 +5,7 @@ import { newId, nowIso, parseJson } from '../util';
 import { coverage, ownedProject } from './access';
 import type { Route } from './router';
 import type { Env } from '../env';
+import { synthesisMarkdown } from '../../shared/synthesis';
 
 interface EvidenceOut {
   id: string;
@@ -177,15 +178,19 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
     L.push('_No proposal has been generated yet._', '');
   } else {
     const p = r.proposal;
-    L.push('## Assessment', '', p.assessment, '');
+    const methods = [...p.approaches.flatMap((a) => a.synthesis_method ? [a.synthesis_method.name] : []), ...p.method_comparison.map((m) => m.method)];
+    const format = (s: string) => synthesisMarkdown(s, methods);
+    L.push('## Assessment', '', format(p.assessment), '');
     L.push('## Ranked approaches', '');
     for (const a of [...p.approaches].sort((x, y) => x.rank - y.rank)) {
-      L.push(`### ${a.rank}. ${a.name} (${a.evidence_strength} evidence) ${a.papers.map((x) => cite(r.papers, x)).join(' ')}`, '', a.summary, '');
+      L.push(`### ${a.rank}. ${format(a.name)} (${a.evidence_strength} evidence) ${a.papers.map((x) => cite(r.papers, x)).join(' ')}`, '', format(a.summary), '');
+      if (a.synthesis_method) L.push(`Synthesis method: **${a.synthesis_method.name}** ${evCite(a.synthesis_method.evidence)}`, '');
+      if (a.equipment?.length) L.push('**Equipment reported**', '', ...a.equipment.map((i) => `- ${i.name} (${i.purpose}) ${evCite(i.evidence)}`), '');
       if (a.ingredients.length) L.push('**Ingredients (as published)**', '', ...a.ingredients.map((i) => `- ${i.name}${i.role ? ` — ${i.role}` : ''}${i.amount ? `: ${i.amount}` : ''} ${evCite(i.evidence)}`), '');
-      if (a.method.length) L.push('**Method (as published)**', '', ...a.method.map((m, i) => `${i + 1}. ${m.step} ${evCite(m.evidence)}`), '');
+      if (a.method.length) L.push('**Method (as published)**', '', ...a.method.map((m, i) => `${i + 1}. ${format(m.step)} ${evCite(m.evidence)}`), '');
       if (a.performance.length) L.push('**Reported performance**', '', ...a.performance.map((m) => `- ${m.property}: ${m.value}${m.test_conditions ? ` (${m.test_conditions})` : ''} ${evCite(m.evidence)}`), '');
-      L.push(`**Fit to brief:** ${a.fit_to_brief}`, '');
-      if (a.risks.length) L.push('**Risks:** ' + a.risks.join('; '), '');
+      L.push(`**Fit to brief:** ${format(a.fit_to_brief)}`, '');
+      if (a.risks.length) L.push('**Risks:** ' + format(a.risks.join('; ')), '');
     }
     if (p.ingredient_comparison.length) {
       L.push('## Ingredient comparison', '', '| Ingredient | Role | Uses |', '|---|---|---|');
@@ -194,7 +199,7 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
     }
     if (p.method_comparison.length) {
       L.push('## Experimental-method comparison', '', '| Method | Uses | Note |', '|---|---|---|');
-      for (const m of p.method_comparison) L.push(`| ${m.method} | ${m.uses.map((u) => `${cite(r.papers, u.paper)} ${u.conditions ?? ''} ${evCite(u.evidence)}`).join('<br>')} | ${m.note ?? ''} |`);
+      for (const m of p.method_comparison) L.push(`| **${m.method}** | ${m.uses.map((u) => `${cite(r.papers, u.paper)} ${format(u.conditions ?? '')} ${evCite(u.evidence)}`).join('<br>')} | ${format(m.note ?? '')} |`);
       L.push('');
     }
     if (p.performance_comparison.length) {
@@ -205,14 +210,14 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
         L.push('');
       }
     }
-    if (p.conflicts.length) L.push('## Conflicting findings', '', ...p.conflicts.map((x) => `- **${x.topic}:** ${x.description} ${evCite(x.evidence)}`), '');
-    if (p.missing_evidence.length) L.push('## Missing evidence', '', ...p.missing_evidence.map((x) => `- ${x}`), '');
-    if (p.adaptations.length) L.push('## ChemBrain’s proposed adaptations (not published; require review)', '', ...p.adaptations.map((x) => `- ${x.proposal} ${evCite(x.basis)} _Caveat: ${x.caveat}_`), '');
+    if (p.conflicts.length) L.push('## Conflicting findings', '', ...p.conflicts.map((x) => `- **${x.topic}:** ${format(x.description)} ${evCite(x.evidence)}`), '');
+    if (p.missing_evidence.length) L.push('## Missing evidence', '', ...p.missing_evidence.map((x) => `- ${format(x)}`), '');
+    if (p.adaptations.length) L.push('## ChemBrain’s proposed adaptations (not published; require review)', '', ...p.adaptations.map((x) => `- ${format(x.proposal)} ${evCite(x.basis)} _Caveat: ${format(x.caveat)}_`), '');
     if (p.next_experiments.length) {
       L.push('## Proposed next experiments', '');
-      for (const x of p.next_experiments) L.push(`### ${x.title}`, '', x.rationale, '', `**Design:** ${x.design}`, '', `**Measure:** ${x.measurements.join('; ')} ${evCite(x.basis)}`, '');
+      for (const x of p.next_experiments) L.push(`### ${format(x.title)}`, '', format(x.rationale), '', `**Design:** ${format(x.design)}`, '', `**Measure:** ${x.measurements.join('; ')} ${evCite(x.basis)}`, '');
     }
-    if (p.not_established.length) L.push('## What the sources do not establish', '', ...p.not_established.map((x) => `- ${x}`), '');
+    if (p.not_established.length) L.push('## What the sources do not establish', '', ...p.not_established.map((x) => `- ${format(x)}`), '');
     if (r.validation.removedReferences || r.validation.unsupportedStatements.length) {
       L.push('## Citation validation', '', `${r.validation.removedReferences} model citations referred to unknown evidence and were removed.`, ...r.validation.unsupportedStatements.map((s) => `- Uncited statement removed or flagged: ${s}`), '');
     }

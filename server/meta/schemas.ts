@@ -80,6 +80,8 @@ export const Proposal = z.strictObject({
         name: z.string().max(200),
         summary: z.string().max(1500),
         papers: z.array(z.string().max(10)).max(10),
+        synthesis_method: z.strictObject({ name: z.string().min(1).max(200), evidence: refs }).nullable(),
+        equipment: z.array(z.strictObject({ name: z.string().min(1).max(200), purpose: z.enum(['synthesis', 'characterization', 'unspecified']), evidence: refs })).max(20),
         ingredients: z.array(z.strictObject({ name: z.string().max(200), role: nstr, amount: nstr, evidence: refs })).max(20),
         method: z.array(z.strictObject({ step: z.string().max(600), evidence: refs })).max(20),
         performance: z.array(z.strictObject({ property: z.string().max(200), value: z.string().max(200), test_conditions: nstr, evidence: refs })).max(20),

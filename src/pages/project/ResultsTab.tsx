@@ -5,19 +5,30 @@ import { Badge, Notice, Spinner } from '../../components/ui';
 import { EvidenceViewer } from '../../components/EvidenceViewer';
 import type { Evidence } from './WorkspaceTab';
 import type { ProjectData } from '../Project';
+import { SynthesisText } from '../../components/SynthesisText';
+import { proposalMethods, type StoredProposal } from '../../lib/report';
+import { InstrumentResults, instrumentPurpose } from '../../components/InstrumentResults';
 
 interface Report {
   id: string;
   model: string;
   createdAt: string;
   report: {
-    proposal: any;
+    proposal: StoredProposal;
     papers: Record<string, { id: string; title: string; doi: string | null; year: number | null }>;
     evidence: Record<string, string>;
     validation: { removedReferences: number; unsupportedStatements: string[]; evidenceUsed: number; papersUsed: number };
     model: string;
     generatedAt: string;
   };
+}
+
+function Section({ title, children, note }: { title: string; children: ReactNode; note?: string }) {
+  return <section className="card report-section">
+    <h2 className="card-title">{title}</h2>
+    {note && <p className="hint">{note}</p>}
+    {children}
+  </section>;
 }
 
 export function ResultsTab({ data }: { data: ProjectData }) {
@@ -38,7 +49,10 @@ export function ResultsTab({ data }: { data: ProjectData }) {
     );
   const r = rep.report;
   const p = r.proposal;
-  const refNum = new Map<string, number>();
+  const methods = proposalMethods(p);
+  const Text = ({ children }: { children: string }) => <SynthesisText text={children} names={methods} />;
+  // Number references from the saved report so filtering instruments cannot renumber citations.
+  const refNum = new Map(Object.keys(r.evidence).map((ref, i) => [ref, i + 1]));
   const Cite = ({ refs }: { refs: string[] }) => (
     <>
       {refs
@@ -46,7 +60,6 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         .map((x) => {
           const evId = r.evidence[x];
           const ev = evidence.get(evId);
-          if (!refNum.has(x)) refNum.set(x, refNum.size + 1);
           return (
             <button
               key={x}
@@ -72,14 +85,6 @@ export function ResultsTab({ data }: { data: ProjectData }) {
       )}
     </>
   );
-  const Section = ({ title, children, note }: { title: string; children: ReactNode; note?: string }) => (
-    <section className="card report-section">
-      <h2 className="card-title">{title}</h2>
-      {note && <p className="hint">{note}</p>}
-      {children}
-    </section>
-  );
-
   return (
     <div className="report">
       <div className="row between wrap">
@@ -104,18 +109,25 @@ export function ResultsTab({ data }: { data: ProjectData }) {
       )}
 
       <Section title="Assessment">
-        <p className="assessment">{p.assessment}</p>
+        <p className="assessment"><Text>{p.assessment}</Text></p>
       </Section>
 
+      <InstrumentResults approaches={p.approaches} citations={(refs) => <Cite refs={refs} />} />
+
       <Section title="Ranked approaches" note="Each approach describes what the cited paper(s) did. Numbers in green open the exact supporting passage.">
-        {[...p.approaches]
-          .sort((a: any, b: any) => a.rank - b.rank)
-          .map((a: any) => (
-            <article key={a.rank} className="approach">
+        {[...p.approaches].sort((a, b) => a.rank - b.rank).map((a) => (
+            <article key={a.rank} id={`approach-${a.rank}`} className="approach">
               <h3>
-                <span className="rank">{a.rank}</span> {a.name} <P refs={a.papers} /> <Badge tone={a.evidence_strength === 'strong' ? 'good' : a.evidence_strength === 'moderate' ? 'info' : 'warn'}>{a.evidence_strength} evidence</Badge>
+                <span className="rank">{a.rank}</span> <span><Text>{a.name}</Text></span> <P refs={a.papers} /> <Badge tone={a.evidence_strength === 'strong' ? 'good' : a.evidence_strength === 'moderate' ? 'info' : 'warn'}>{a.evidence_strength} evidence</Badge>
               </h3>
-              <p>{a.summary}</p>
+              {a.synthesis_method && <p className="synthesis-method">Synthesis method: <strong>{a.synthesis_method.name}</strong> <Cite refs={a.synthesis_method.evidence} /></p>}
+              <p><Text>{a.summary}</Text></p>
+              <div className="approach-equipment">
+                <h4>Equipment reported</h4>
+                {a.equipment?.length ? <ul className="plain small">
+                  {a.equipment.map((i, k) => <li key={k}><strong>{i.name}</strong> <Badge>{instrumentPurpose(i.purpose)}</Badge> <Cite refs={i.evidence} /></li>)}
+                </ul> : <p className="hint">Equipment not listed in this report{a.equipment === undefined ? '; run a new analysis to extract it' : ''}. This does not establish that no specialized equipment is needed.</p>}
+              </div>
               <div className="grid-3">
                 <div>
                   <h4>Ingredients (published)</h4>
@@ -134,7 +146,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
                   <ol className="small">
                     {a.method.map((m: any, k: number) => (
                       <li key={k}>
-                        {m.step} {m.evidence.length ? <Cite refs={m.evidence} /> : <Badge tone="warn">uncited</Badge>}
+                        <Text>{m.step}</Text> {m.evidence.length ? <Cite refs={m.evidence} /> : <Badge tone="warn">uncited</Badge>}
                       </li>
                     ))}
                   </ol>
@@ -151,11 +163,11 @@ export function ResultsTab({ data }: { data: ProjectData }) {
                 </div>
               </div>
               <p className="small">
-                <strong>Fit to brief:</strong> {a.fit_to_brief}
+                <strong>Fit to brief:</strong> <Text>{a.fit_to_brief}</Text>
               </p>
               {a.risks.length > 0 && (
                 <p className="small">
-                  <strong>Risks:</strong> {a.risks.join('; ')}
+                  <strong>Risks:</strong> <Text>{a.risks.join('; ')}</Text>
                 </p>
               )}
             </article>
@@ -207,7 +219,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
               <tbody>
                 {p.method_comparison.map((row: any, k: number) => (
                   <tr key={k}>
-                    <td>{row.method}</td>
+                    <td><strong>{row.method}</strong></td>
                     <td>
                       {row.uses.map((u: any, j: number) => (
                         <div key={j}>
@@ -267,7 +279,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
             <ul className="plain">
               {p.conflicts.map((c: any, k: number) => (
                 <li key={k}>
-                  <strong>{c.topic}:</strong> {c.description} <Cite refs={c.evidence} />
+                  <strong>{c.topic}:</strong> <Text>{c.description}</Text> <Cite refs={c.evidence} />
                 </li>
               ))}
             </ul>
@@ -278,7 +290,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         <Section title="Missing evidence">
           <ul className="plain">
             {p.missing_evidence.map((m: string, k: number) => (
-              <li key={k}>{m}</li>
+              <li key={k}><Text>{m}</Text></li>
             ))}
           </ul>
         </Section>
@@ -288,7 +300,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         <ul className="plain">
           {p.adaptations.map((a: any, k: number) => (
             <li key={k} className="adaptation">
-              <Badge tone="info">Proposed, not published</Badge> {a.proposal} <Cite refs={a.basis} />
+              <Badge tone="info">Proposed, not published</Badge> <Text>{a.proposal}</Text> <Cite refs={a.basis} />
               <div className="small muted">Caveat: {a.caveat}</div>
             </li>
           ))}
@@ -299,9 +311,9 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         {p.next_experiments.map((x: any, k: number) => (
           <article key={k} className="experiment">
             <h3>{x.title}</h3>
-            <p>{x.rationale}</p>
+            <p><Text>{x.rationale}</Text></p>
             <p className="small">
-              <strong>Design:</strong> {x.design}
+              <strong>Design:</strong> <Text>{x.design}</Text>
             </p>
             <p className="small">
               <strong>Measure:</strong> {x.measurements.join('; ')} <Cite refs={x.basis} />
@@ -313,7 +325,7 @@ export function ResultsTab({ data }: { data: ProjectData }) {
       <Section title="What the sources do not establish">
         <ul className="plain">
           {p.not_established.map((m: string, k: number) => (
-            <li key={k}>{m}</li>
+            <li key={k}><Text>{m}</Text></li>
           ))}
         </ul>
       </Section>

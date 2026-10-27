@@ -51,7 +51,7 @@ export function fakeMeta(opts: { failFirst?: number } = {}) {
       return sse(
         JSON.stringify({
           assessment: 'Test assessment.',
-          approaches: [{ rank: 1, name: 'Approach A', summary: 's', papers: [e1.p, 'P99'], ingredients: [{ name: 'starch', role: 'matrix', amount: null, evidence: [e1.e, 'E9999'] }], method: [{ step: 'cast', evidence: [] }], performance: [{ property: 'WVP', value: '1', test_conditions: null, evidence: ['E9999'] }], fit_to_brief: 'ok', risks: [], evidence_strength: 'moderate' }],
+          approaches: [{ rank: 1, name: 'Approach A', summary: 's', papers: [e1.p, 'P99'], synthesis_method: { name: 'Uncited test route', evidence: ['E9999'] }, equipment: [{ name: 'Uncited test instrument', purpose: 'synthesis', evidence: ['E9999'] }], ingredients: [{ name: 'starch', role: 'matrix', amount: null, evidence: [e1.e, 'E9999'] }], method: [{ step: 'cast', evidence: [] }], performance: [{ property: 'WVP', value: '1', test_conditions: null, evidence: ['E9999'] }], fit_to_brief: 'ok', risks: [], evidence_strength: 'moderate' }],
           ingredient_comparison: [],
           method_comparison: [],
           performance_comparison: [],

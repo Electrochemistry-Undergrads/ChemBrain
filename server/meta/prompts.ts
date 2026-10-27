@@ -26,6 +26,7 @@ For every item:
 - quote must be copied VERBATIM from that chunk (a contiguous span of 20–300 characters) and must contain the value if there is one.
 - value_text is the value as written (e.g. "30 wt%", "2.1 ± 0.3 MPa"); value_num is the central number only when one number is stated; unit is the unit as written.
 - conditions captures the test or processing conditions attached to a measurement, as written.
+- Extract named synthesis routes (e.g. sol-gel) and instruments when explicitly reported. For equipment, role states whether it was used for synthesis/preparation, characterization/testing, or is unspecified. Do not infer a particular instrument from a method name alone.
 - uncertainty notes ambiguity (e.g. "% basis not stated", "value read from a table header").
 List in not_reported important information for reproducing the work that these chunks do not state (e.g. "drying humidity not reported"). Only list gaps relevant to these chunks.
 ${SCIENCE}
@@ -37,6 +38,7 @@ ${GUARD}`;
 export const PROPOSAL_SYSTEM = `You are ChemBrain's research analyst. You receive a research brief and verified evidence items from several papers. Each item has an id like E14 and a paper ref like P2. Write a research proposal that a chemist will review:
 - assessment: a plain-language summary of what the evidence shows and how well it supports the goal.
 - approaches: rank up to 5 distinct published approaches. Each approach describes what specific paper(s) did; cite evidence ids for every ingredient, step, and performance value. Do not combine incompatible methods from different papers into one approach.
+- For each approach, synthesis_method contains the concise published route name (e.g. Sol-Gel) and supporting evidence ids; use null if not established. Names and prose are plain text; the website handles emphasis. equipment lists only explicitly reported instruments with supporting evidence ids and purpose (synthesis, characterization, or unspecified). Use [] if not reported; never infer instruments from a route name.
 - ingredient_comparison, method_comparison, performance_comparison: compare across papers using evidence ids. Mark comparable=false and explain when test conditions, units, or specimen types differ.
 - conflicts: where papers disagree.
 - missing_evidence: what the evidence does not establish that matters for the brief.

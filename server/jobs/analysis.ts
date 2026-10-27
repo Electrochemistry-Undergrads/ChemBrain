@@ -234,6 +234,11 @@ export async function compareAndPropose(env: Env, ctx: UsageContext, brief: unkn
   const p = res.data;
   for (const a of p.approaches) {
     a.papers = a.papers.map(validP).filter((x): x is string => x !== null);
+    if (a.synthesis_method && !(a.synthesis_method.evidence = validE(a.synthesis_method.evidence)).length) {
+      unsupported.push(`${a.name}: synthesis method ${a.synthesis_method.name}`);
+      a.synthesis_method = null;
+    }
+    a.equipment = a.equipment.filter((i) => (i.evidence = validE(i.evidence)).length > 0 || (unsupported.push(`${a.name}: equipment ${i.name}`), false));
     a.ingredients.forEach((i) => (i.evidence = validE(i.evidence)));
     a.method.forEach((m) => (m.evidence = validE(m.evidence)));
     a.performance = a.performance.filter((x) => (x.evidence = validE(x.evidence)).length > 0 || (unsupported.push(`${a.name}: ${x.property} = ${x.value}`), false));
