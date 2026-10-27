@@ -11,3 +11,22 @@ public/build-info.json
 .deploy.env
 dist/
 *.pdf
+
+# Local credentials, private keys, logs, and database copies
+.npmrc
+.netrc
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+*.log
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm

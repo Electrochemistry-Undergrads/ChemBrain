@@ -6,7 +6,11 @@ import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const files = execSync('git ls-files --cached --others --exclude-standard', { encoding: 'utf8' }).split('\n').filter(Boolean);
-const forbiddenNames = [/^\.dev\.vars/, /^\.deploy\.env$/, /^\.env$/, /\.pem$/, /id_rsa/];
+const forbiddenNames = [
+  /^\.dev\.vars(?:\.|$)/, /^\.deploy\.env$/, /^\.env(?:\..+)?$/,
+  /^\.(?:npmrc|netrc)$/, /\.(?:pem|key|p12|pfx)$/i, /^id_(?:rsa|ed25519|ecdsa)$/,
+  /\.(?:log|db|sqlite|sqlite3)(?:-(?:wal|shm))?$/i,
+];
 const patterns = [
   ['Meta API key', /LLM_\d{3,}[A-Za-z0-9_-]{16,}/],
   ['Private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
@@ -30,7 +34,8 @@ const scan = (path, text) => {
   }
 };
 for (const f of files) {
-  if (forbiddenNames.some((re) => re.test(f.split('/').pop()))) findings.push(`${f}: file must not be committed`);
+  const name = f.split('/').pop();
+  if (name !== '.env.example' && forbiddenNames.some((re) => re.test(name))) findings.push(`${f}: file must not be committed`);
   if (!existsSync(f) || statSync(f).size > 5_000_000) continue;
   if (f.startsWith('server/demo/')) continue; // CC BY article text; emails were stripped at generation time and are tested
   scan(f, readFileSync(f, 'utf8'));
