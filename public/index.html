@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f7f2">
+  <meta name="description" content="ChemBrain is a chemistry research workspace in development. Explore the evidence behind your next product idea.">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ChemBrain — Chemistry, connected.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%232c5046'/%3E%3Cpath d='m24 10 12 7v14l-12 7-12-7V17Z' fill='none' stroke='%23f7f7f2' stroke-width='3'/%3E%3Ccircle cx='24' cy='24' r='4' fill='%23dff080'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: light; --paper:#f7f7f2; --ink:#203d35; --muted:#65756d; --line:#dce2d8; --accent:#dcf181; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+    a { color:inherit; }
+    .shell { width:min(1200px,calc(100% - 96px)); margin:auto; }
+    header { height:108px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:11px; font-size:24px; font-weight:650; letter-spacing:-1px; }
+    .brand svg { width:31px; height:35px; }
+    .status { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:12px; letter-spacing:.06em; }
+    .dot { height:7px; width:7px; background:#819b57; border-radius:50%; }
+    main { padding:96px 0 64px; }
+    .hero { display:grid; grid-template-columns:1.15fr 1fr; align-items:center; gap:36px; min-height:490px; }
+    .eyebrow { margin:0 0 27px; font-family:ui-monospace,SFMono-Regular,monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+    h1 { font-family:Georgia,"Times New Roman",serif; font-size:clamp(62px,6.9vw,96px); line-height:1.02; font-weight:400; letter-spacing:-4.5px; margin:0 0 27px; }
+    h1 em { font-weight:400; }
+    .intro { color:var(--muted); font-size:17px; line-height:1.8; max-width:440px; margin:0 0 30px; }
+    .coming { display:inline-flex; align-items:center; gap:17px; padding:13px 20px; background:var(--accent); border:1px solid #c9d97f; border-radius:999px; font-size:13px; font-weight:600; }
+    .note { margin:16px 0 0; font-size:11px; color:var(--muted); }
+    .visual { position:relative; min-width:0; }
+    .molecule { width:100%; display:block; overflow:visible; }
+    .visual-label { text-align:center; font-family:ui-monospace,SFMono-Regular,monospace; color:#7a887e; font-size:10px; letter-spacing:.1em; margin:0; }
+    .workflow { border-top:1px solid var(--line); margin-top:72px; padding-top:25px; }
+    .section-label { margin:0 0 24px; color:var(--muted); font-size:10px; letter-spacing:.13em; text-transform:uppercase; }
+    .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:44px; }
+    .step-top { display:flex; align-items:baseline; gap:14px; margin-bottom:10px; }
+    .number { font-family:ui-monospace,SFMono-Regular,monospace; font-size:10px; color:#8a9688; }
+    h2 { margin:0; font-weight:500; font-size:16px; letter-spacing:-.3px; }
+    .steps p { margin:0; color:var(--muted); line-height:1.7; font-size:13px; padding-left:29px; max-width:320px; }
+    footer { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-top:70px; padding:26px 0 30px; border-top:1px solid var(--line); font-size:10px; color:var(--muted); line-height:1.7; }
+    .footer-brand { font-weight:600; letter-spacing:.04em; }
+    @media (max-width:800px) { .shell { width:calc(100% - 48px); } header { height:85px; } main { padding-top:60px; } .hero { grid-template-columns:1fr; gap:28px; } h1 { font-size:72px; letter-spacing:-3.5px; } .visual { max-width:470px; width:100%; margin:auto; } .workflow { margin-top:48px; } .steps { gap:20px; } footer { margin-top:45px; } }
+    @media (max-width:520px) { .shell { width:calc(100% - 40px); } .brand { font-size:22px; } .status { font-size:10px; } h1 { font-size:62px; } .intro { font-size:15px; } main { padding-top:48px; } .visual { margin-top:0; } .steps { grid-template-columns:1fr; gap:24px; } .steps p { max-width:none; } footer { flex-direction:column; align-items:flex-start; gap:8px; } }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><svg viewBox="0 0 36 40" fill="none" aria-hidden="true"><path d="m18 3 14 8v18l-14 8-14-8V11Z" stroke="currentColor" stroke-width="1.8"/><path d="m18 12 7 4v8l-7 4-7-4v-8Z" stroke="currentColor" stroke-width="1.3"/><circle cx="18" cy="20" r="2.7" fill="currentColor"/></svg>ChemBrain</div>
+      <div class="status"><span class="dot" aria-hidden="true"></span>In development</div>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">A new workspace for chemistry research</p>
+          <h1 id="hero-title">Chemistry,<br><em>connected.</em></h1>
+          <p class="intro">From a product idea to the research behind it. We're building a clearer way to explore papers, compare methods, and plan your next experiment.</p>
+          <div class="coming">Coming soon <span aria-hidden="true">↗</span></div>
+          <p class="note">The research starts here. The application is on its way.</p>
+        </div>
+        <div class="visual">
+          <svg class="molecule" viewBox="0 0 500 450" role="img" aria-label="An abstract molecular network connecting a product idea to paper evidence and a research plan">
+            <defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="12" cy="12" r=".7" fill="#cdd6c9"/></pattern><radialGradient id="wash"><stop stop-color="#e5ebd9" stop-opacity=".8"/><stop offset="1" stop-color="#f7f7f2" stop-opacity="0"/></radialGradient></defs>
+            <rect width="500" height="450" fill="url(#grid)"/>
+            <circle cx="250" cy="222" r="200" fill="url(#wash)"/>
+            <g fill="none" stroke="#c4d0bd" stroke-width="1"><circle cx="250" cy="222" r="156" stroke-dasharray="3 7"/><ellipse cx="250" cy="222" rx="200" ry="78" transform="rotate(-35 250 222)"/><ellipse cx="250" cy="222" rx="200" ry="78" transform="rotate(35 250 222)"/></g>
+            <g fill="none" stroke="#536e5a" stroke-width="1.4"><path d="m250 122 87 50v100l-87 50-87-50V172Z"/><path d="m250 145 67 39m0 76-67 39m-67-39v-76"/><path d="m250 122 0-44m87 94 42-25m-42 125 39 24m-126 26v45m-87-95-44 26m44-126-41-24"/></g>
+            <g fill="#f7f7f2" stroke="#536e5a" stroke-width="1.6"><circle cx="250" cy="122" r="9"/><circle cx="337" cy="172" r="9"/><circle cx="337" cy="272" r="9"/><circle cx="250" cy="322" r="9"/><circle cx="163" cy="272" r="9"/><circle cx="163" cy="172" r="9"/></g>
+            <circle cx="250" cy="222" r="33" fill="#dcf181" stroke="#9fb570" stroke-width="1"/>
+            <g fill="none" stroke="#345347" stroke-width="1.5"><path d="m250 207 13 7.5v15L250 237l-13-7.5v-15Z"/><circle cx="250" cy="222" r="4" fill="#345347"/></g>
+            <g fill="#2c5046"><circle cx="250" cy="78" r="5"/><circle cx="379" cy="147" r="5"/><circle cx="376" cy="296" r="5"/><circle cx="250" cy="367" r="5"/><circle cx="119" cy="298" r="5"/><circle cx="122" cy="148" r="5"/></g>
+            <g font-family="ui-monospace,monospace" font-size="9" letter-spacing="1" fill="#65756d"><text x="264" y="80">IDEA</text><text x="318" y="128">EVIDENCE</text><text x="265" y="385">EXPERIMENT</text></g>
+          </svg>
+          <p class="visual-label">AN IDEA. A CONNECTION. A NEW POSSIBILITY.</p>
+        </div>
+      </section>
+      <section class="workflow" aria-label="Planned research workflow">
+        <p class="section-label">What we're working toward</p>
+        <div class="steps">
+          <article><div class="step-top"><span class="number">01</span><h2>Start with a question</h2></div><p>Describe what you want to create and the properties that matter.</p></article>
+          <article><div class="step-top"><span class="number">02</span><h2>Connect the evidence</h2></div><p>Explore relevant papers, ingredients, and experimental methods.</p></article>
+          <article><div class="step-top"><span class="number">03</span><h2>Build a research plan</h2></div><p>Compare possible approaches with a clear path back to the sources.</p></article>
+        </div>
+      </section>
+    </main>
+    <footer><span class="footer-brand">ChemBrain · A project in progress</span><span>Planned connections: Elsevier · Wiley · Springer Nature · Meta</span></footer>
+  </div>
+</body>
+</html>
