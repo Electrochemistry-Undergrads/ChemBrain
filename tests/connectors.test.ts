@@ -245,6 +245,22 @@ describe('Springer Nature connector', () => {
 });
 
 describe('routing and retrieval honesty', () => {
+  it('keeps website Springer retrieval OA-only even with legacy full-text credentials and settings', async () => {
+    const { f, calls } = mockFetch((u) => u.hostname === 'api.springernature.com'
+      ? new Response('<response><records/></response>')
+      : Response.json({ resultList: { result: [] } }));
+    const result = await retrievePaper(ctxWith(f, { springer: { apiKey: 'legacy', metaApiKey: 'metadata', fullTextApiKey: 'full/metric' } }, { springer: { fullTextAgreement: true } }), paper('10.1038/test.1'));
+    expect(result.attempts.every((a) => a.connector !== 'springer_fulltext')).toBe(true);
+    expect(calls.filter((c) => new URL(c.url).hostname === 'api.springernature.com').map((c) => new URL(c.url).pathname)).toEqual(['/openaccess/jats']);
+  });
+  it('does not call the removed Elsevier server connection even with saved credentials', async () => {
+    const { f, calls } = mockFetch(() => Response.json({ resultList: { result: [] } }));
+    const result = await retrievePaper(ctxWith(f, { elsevier: { apiKey: 'saved-key' } }), paper('10.1016/j.test.1'));
+    expect(result.success).toBeNull();
+    expect(result.attempts[0].reason).toMatch(/Elsevier from this browser/);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((c) => new URL(c.url).hostname !== 'api.elsevier.com')).toBe(true);
+  });
   it('routes DOIs to publishers', () => {
     expect(publisherOf('10.1016/j.foodhyd.2020.1')).toBe('elsevier');
     expect(publisherOf('10.1002/app.1')).toBe('wiley');
