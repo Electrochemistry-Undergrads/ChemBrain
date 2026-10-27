@@ -1,0 +1,39 @@
+{
+  "name": "chembrain",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:full": "npm run build && wrangler pages dev dist --d1 DB --local",
+    "build": "node scripts/write-build-info.mjs && tsc -p tsconfig.json --noEmit && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply chembrain --local",
+    "db:migrate:remote": "wrangler d1 migrations apply chembrain --remote",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "check": "npm run typecheck && npm test && npm run build && npm run scan:secrets",
+    "demo:refresh": "node scripts/fetch-demo-papers.mjs"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router-dom": "7.18.4",
+    "unpdf": "1.8.1",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261011.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vitest": "4.1.12",
+    "wrangler": "4.149.0"
+  }
+}
