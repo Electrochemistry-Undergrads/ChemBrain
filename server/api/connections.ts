@@ -1,6 +1,6 @@
 import { loadConnectorContext, PROVIDERS, testConnection } from '../connectors';
 import type { ConnectionSettings, Provider } from '../connectors/types';
-import { encryptSecret, redact } from '../crypto/secrets';
+import { decryptSecret, encryptSecret, redact } from '../crypto/secrets';
 import { ApiError, json } from '../http/respond';
 import { newId, nowIso, parseJson } from '../util';
 import type { Route } from './router';
@@ -12,7 +12,7 @@ const FIELDS: Record<Provider, { key: string; required: boolean }[]> = {
     { key: 'instToken', required: false },
   ],
   wiley: [{ key: 'tdmToken', required: true }],
-  springer: [{ key: 'apiKey', required: true }],
+  springer: ['apiKey', 'metaApiKey', 'openAccessApiKey', 'fullTextApiKey'].map((key) => ({ key, required: false })),
 };
 
 function asProvider(p: string): Provider {
@@ -53,7 +53,7 @@ export const connectionRoutes: Route[] = [
       const provider = asProvider(params.provider);
       if (!env.CREDENTIALS_KEY) throw new ApiError(503, 'no_encryption', 'Credential storage is not configured on this server (CREDENTIALS_KEY is missing), so credentials cannot be saved securely.');
       const b = await body<{ secrets?: Record<string, string>; settings?: ConnectionSettings }>();
-      const existing = await env.DB.prepare('SELECT id, settings_json, secret_ciphertext FROM connections WHERE owner_id = ? AND provider = ?').bind(user.id, provider).first<{ id: string; settings_json: string; secret_ciphertext: string | null }>();
+      const existing = await env.DB.prepare('SELECT id, settings_json, secret_ciphertext, secret_iv FROM connections WHERE owner_id = ? AND provider = ?').bind(user.id, provider).first<{ id: string; settings_json: string; secret_ciphertext: string | null; secret_iv: string | null }>();
       const prevSettings = parseJson<ConnectionSettings & { savedFields?: string[] }>(existing?.settings_json, {});
       const settings: ConnectionSettings & { savedFields?: string[] } = {
         ...prevSettings,
@@ -63,11 +63,23 @@ export const connectionRoutes: Route[] = [
       let cipher: { ciphertext: string; iv: string } | null = null;
       if (b.secrets) {
         const clean: Record<string, string> = {};
+        if (existing?.secret_ciphertext && existing.secret_iv) {
+          try {
+            Object.assign(clean, JSON.parse(await decryptSecret(env.CREDENTIALS_KEY, user.id, provider, existing.secret_ciphertext, existing.secret_iv)));
+          } catch {
+            throw new ApiError(409, 'credentials_unreadable', 'The saved credentials can no longer be decrypted. Remove this connection and enter the credentials again.');
+          }
+        }
         for (const f of FIELDS[provider]) {
-          const v = (b.secrets[f.key] ?? '').trim();
-          if (f.required && !v) throw new ApiError(400, 'missing_field', 'Fill in the required credential.');
+          const input = b.secrets[f.key];
+          if (input !== undefined && typeof input !== 'string') throw new ApiError(400, 'bad_field', 'Credentials must be text.');
+          const v = (input ?? '').trim();
           if (v.length > 500 || /\s/.test(v)) throw new ApiError(400, 'bad_field', 'Credentials cannot contain spaces and must be under 500 characters.');
+          // Empty password inputs mean "keep saved", including optional institutional tokens.
           if (v) clean[f.key] = v;
+        }
+        if (FIELDS[provider].some((f) => f.required && !clean[f.key]) || !Object.keys(clean).length) {
+          throw new ApiError(400, 'missing_field', 'Fill in at least one required credential.');
         }
         cipher = await encryptSecret(env.CREDENTIALS_KEY, user.id, provider, JSON.stringify(clean));
         settings.savedFields = Object.keys(clean);
@@ -77,7 +89,7 @@ export const connectionRoutes: Route[] = [
       const now = nowIso();
       if (existing) {
         await env.DB.prepare(
-          `UPDATE connections SET settings_json = ?, updated_at = ?${cipher ? ', secret_ciphertext = ?, secret_iv = ?, last_test_at = NULL, last_test_json = NULL' : ''} WHERE id = ? AND owner_id = ?`,
+          `UPDATE connections SET settings_json = ?, updated_at = ?, last_test_at = NULL, last_test_json = NULL${cipher ? ', secret_ciphertext = ?, secret_iv = ?' : ''} WHERE id = ? AND owner_id = ?`,
         )
           .bind(...[JSON.stringify(settings), now, ...(cipher ? [cipher.ciphertext, cipher.iv] : []), existing.id, user.id])
           .run();
@@ -99,7 +111,7 @@ export const connectionRoutes: Route[] = [
       let checks = await testConnection(ctx, provider);
       // Defensive: upstream messages must never echo the user's credentials back.
       checks = checks.map((c) => ({ ...c, message: redact(c.message, secrets) }));
-      const result = { ok: checks.every((c) => c.status !== 'fail'), checks, testedAt: nowIso(), live: true };
+      const result = { ok: checks.some((c) => c.status === 'pass') && checks.every((c) => c.status !== 'fail'), checks, testedAt: nowIso(), live: true };
       await env.DB.prepare('UPDATE connections SET last_test_at = ?, last_test_json = ? WHERE owner_id = ? AND provider = ?').bind(result.testedAt, JSON.stringify(result), user.id, provider).run();
       return json(result);
     },

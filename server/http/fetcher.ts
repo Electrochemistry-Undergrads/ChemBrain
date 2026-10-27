@@ -11,6 +11,8 @@ export interface FetchPolicy {
   /** Hostnames a redirect may go to. Redirects elsewhere are refused rather than followed. */
   redirectHosts?: string[];
   maxRedirects?: number;
+  /** Return redirects to the caller without following them (e.g. a download availability probe). */
+  followRedirects?: boolean;
   /**
    * Follow HTTPS redirects to hosts outside redirectHosts, but only after removing these request
    * headers (credentials are never forwarded to another host). Used for signed file-delivery URLs.
@@ -108,6 +110,7 @@ async function fetchFollowing(url: string, init: RequestInit, policy: FetchPolic
       clearTimeout(timer);
     }
     if (res.status < 300 || res.status >= 400 || !res.headers.get('location')) return res;
+    if (policy.followRedirects === false) return res;
     const next = new URL(res.headers.get('location')!, current);
     await res.body?.cancel();
     const allowed = policy.redirectHosts ?? [];

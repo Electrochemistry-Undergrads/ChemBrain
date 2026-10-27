@@ -21,7 +21,7 @@ const INFO: Record<Conn['provider'], { title: string; fields: { key: string; lab
     ],
     about: [
       'ChemBrain retrieves structured full-text XML through the Article Retrieval API after checking entitlement.',
-      'Elsevier grants subscription access by campus IP address or an institutional token. ChemBrain runs in the cloud, so your campus IP access does not carry over. Without a token, only open-access articles are retrievable.',
+      'Elsevier grants subscription access by campus IP address or an institutional token. ChemBrain runs in the cloud, so your campus IP access does not carry over. Even open-access retrieval depends on your key’s API permissions and Elsevier’s access rules.',
     ],
     docs: 'https://dev.elsevier.com/tecdoc_api_authentication.html',
   },
@@ -37,9 +37,15 @@ const INFO: Record<Conn['provider'], { title: string; fields: { key: string; lab
   },
   springer: {
     title: 'Springer Nature',
-    fields: [{ key: 'apiKey', label: 'API key', required: true, help: 'From dev.springernature.com. Used for the Meta (discovery) and Open Access APIs.' }],
+    fields: [
+      { key: 'apiKey', label: 'Shared API key (optional)', required: false, help: 'From dev.springernature.com → API Management. Use this if your key is enabled for multiple APIs. API-specific credentials below take precedence; leave saved fields blank to keep them.' },
+      { key: 'metaApiKey', label: 'Meta API key (optional · discovery)', required: false, help: 'Copy the credential for the Meta API. This API searches metadata and abstracts; it is separate from the Meta AI model.' },
+      { key: 'openAccessApiKey', label: 'Open Access API key (optional · full text)', required: false, help: 'Copy the credential for the Open Access API. You can connect just this API without a Meta API key.' },
+      { key: 'fullTextApiKey', label: 'Full Text API credential (optional · key/metric)', required: false, help: 'For an approved TDM agreement: copy the complete key/metric value from API Management after activating the Full Text API.' },
+    ],
     about: [
       'Discovery uses the Meta API; open-access full text comes from the Open Access API as JATS XML.',
+      'Activate the APIs you need in Springer Nature API Management. Save a shared key or each API’s credential below; you only need to fill in the APIs you use.',
       'Subscription articles (for example most Nature-branded journals) need the separate Full Text API under an approved text-and-data-mining agreement. A free or open-access key does not unlock them.',
     ],
     docs: 'https://dev.springernature.com/docs/api-endpoints/open-access/',
@@ -94,27 +100,32 @@ export function ConnectionsPage() {
   );
 }
 
-function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () => void; canSave: boolean }) {
+function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () => Promise<void>; canSave: boolean }) {
   const info = INFO[conn.provider];
   const [values, setValues] = useState<Record<string, string>>({});
   const [attest, setAttest] = useState(Boolean(conn.settings.aiProcessingAttested));
   const [agreement, setAgreement] = useState(Boolean(conn.settings.fullTextAgreement));
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
-  const [test, setTest] = useState(conn.lastTest);
+  const test = conn.lastTest;
+  const hasSecrets = info.fields.some((f) => values[f.key]?.trim());
+  const dirty = hasSecrets || attest !== Boolean(conn.settings.aiProcessingAttested) || agreement !== Boolean(conn.settings.fullTextAgreement);
+
+  const persist = async () => {
+    await api(`/api/connections/${conn.provider}`, {
+      method: 'PUT',
+      body: { secrets: hasSecrets ? values : undefined, settings: { aiProcessingAttested: attest, fullTextAgreement: agreement } },
+    });
+    setValues({});
+    await onChange();
+  };
 
   const save = async () => {
     setBusy('save');
     setMsg(null);
     try {
-      const hasSecrets = info.fields.some((f) => values[f.key]?.trim());
-      await api(`/api/connections/${conn.provider}`, {
-        method: 'PUT',
-        body: { secrets: hasSecrets ? values : undefined, settings: { aiProcessingAttested: attest, fullTextAgreement: agreement } },
-      });
-      setValues({});
+      await persist();
       setMsg({ tone: 'good', text: 'Saved. Run a connection test to check access.' });
-      onChange();
     } catch (e) {
       setMsg({ tone: 'bad', text: (e as Error).message });
     } finally {
@@ -123,8 +134,11 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
   };
   const runTest = async () => {
     setBusy('test');
+    setMsg(null);
     try {
-      setTest(await api(`/api/connections/${conn.provider}/test`, { method: 'POST' }));
+      if (dirty) await persist();
+      await api(`/api/connections/${conn.provider}/test`, { method: 'POST' });
+      await onChange();
     } catch (e) {
       setMsg({ tone: 'bad', text: (e as Error).message });
     } finally {
@@ -133,9 +147,19 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
   };
   const remove = async () => {
     if (!confirm(`Remove your ${info.title} credentials? They will be deleted from the server.`)) return;
-    await api(`/api/connections/${conn.provider}`, { method: 'DELETE' });
-    setTest(null);
-    onChange();
+    setBusy('remove');
+    setMsg(null);
+    try {
+      await api(`/api/connections/${conn.provider}`, { method: 'DELETE' });
+      setValues({});
+      setAttest(false);
+      setAgreement(false);
+      await onChange();
+    } catch (e) {
+      setMsg({ tone: 'bad', text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -163,6 +187,7 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
               type="password"
               autoComplete="off"
               spellCheck={false}
+              disabled={busy !== null}
               placeholder={conn.savedFields.includes(f.key) ? 'Saved — enter a new value to replace' : ''}
               value={values[f.key] ?? ''}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
@@ -172,12 +197,12 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
         ))}
         {conn.provider === 'springer' && (
           <label className="check">
-            <input type="checkbox" checked={agreement} onChange={(e) => setAgreement(e.target.checked)} />
+            <input type="checkbox" disabled={busy !== null} checked={agreement} onChange={(e) => setAgreement(e.target.checked)} />
             <span>I hold an approved Springer Nature full-text (TDM) agreement for this key. Leave unchecked if you only have a free or open-access key.</span>
           </label>
         )}
         <label className="check">
-          <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} />
+          <input type="checkbox" disabled={busy !== null} checked={attest} onChange={(e) => setAttest(e.target.checked)} />
           <span>
             My institution’s licence with {info.title.split(' ·')[0]} permits sending subscription article text to an external AI service (Meta) for my research analysis. ChemBrain cannot infer this from subscription access; open-licence papers are analysed regardless.
           </span>
@@ -187,11 +212,11 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
           <button className="btn btn-primary" disabled={!canSave || busy !== null}>
             {busy === 'save' ? 'Saving…' : 'Save'}
           </button>
-          <button type="button" className="btn" disabled={!conn.configured || busy !== null} onClick={runTest}>
+          <button type="button" className="btn" disabled={(!conn.configured && !hasSecrets) || !canSave || busy !== null} onClick={runTest}>
             {busy === 'test' ? 'Testing…' : 'Test connection'}
           </button>
           {conn.configured && (
-            <button type="button" className="btn btn-ghost danger" onClick={remove}>
+            <button type="button" className="btn btn-ghost danger" disabled={busy !== null} onClick={remove}>
               Remove
             </button>
           )}

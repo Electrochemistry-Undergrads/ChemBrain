@@ -34,7 +34,7 @@ function abstractOf(a: MetaRecord['abstract']) {
 }
 
 export async function springerSearch(ctx: ConnectorContext, query: string, pageSize = 20): Promise<Candidate[]> {
-  const key = ctx.creds.springer?.apiKey;
+  const key = ctx.creds.springer?.metaApiKey || ctx.creds.springer?.apiKey;
   if (!key) return [];
   const params = new URLSearchParams({ q: query, p: String(Math.min(pageSize, 25)), s: '1', api_key: key });
   const res = await policyFetch(`${BASE}/meta/v2/json?${params}`, {}, POLICY, ctx.fetch);
@@ -56,24 +56,30 @@ export async function springerSearch(ctx: ConnectorContext, query: string, pageS
     }));
 }
 
+function jatsKey(ctx: ConnectorContext, path: '/openaccess/jats' | '/xmldata/jats') {
+  const creds = ctx.creds.springer;
+  return (path === '/openaccess/jats' ? creds?.openAccessApiKey : creds?.fullTextApiKey) || creds?.apiKey;
+}
+
 async function jats(ctx: ConnectorContext, path: '/openaccess/jats' | '/xmldata/jats', doi: string) {
-  const params = new URLSearchParams({ q: `doi:${doi}`, api_key: ctx.creds.springer!.apiKey });
+  const params = new URLSearchParams({ q: `doi:${doi}`, p: '1', api_key: jatsKey(ctx, path)! });
   return policyFetch(`${BASE}${path}?${params}`, { headers: { accept: 'application/xml' } }, POLICY, ctx.fetch);
 }
 
 export async function springerRetrieve(ctx: ConnectorContext, paper: PaperRef): Promise<RetrievalAttempt[]> {
   if (!paper.doi) return [{ connector: 'springer_oa', status: 'not_applicable', reason: 'Springer Nature lookup needs a DOI.' }];
-  if (!ctx.creds.springer?.apiKey) {
-    return [{ connector: 'springer_oa', status: 'credentials_missing', reason: 'Add your Springer Nature API key under Publisher connections to retrieve open-access Springer Nature articles.' }];
-  }
   const attempts: RetrievalAttempt[] = [];
-  try {
+  if (!jatsKey(ctx, '/openaccess/jats')) {
+    attempts.push({ connector: 'springer_oa', status: 'credentials_missing', reason: 'Add a Springer Nature Open Access API key (or a shared key enabled for that API) under Publisher connections.' });
+  } else try {
     const res = await jats(ctx, '/openaccess/jats', paper.doi);
     if (res.status === 401 || res.status === 403) {
-      return [{ connector: 'springer_oa', status: 'credentials_invalid', reason: 'Springer Nature rejected the API key (it may be invalid or lack Open Access API access).' }];
-    }
-    if (!res.ok) attempts.push({ connector: 'springer_oa', status: 'failed', reason: `Springer Nature Open Access API returned HTTP ${res.status}.` });
-    else {
+      await res.body?.cancel();
+      attempts.push({ connector: 'springer_oa', status: 'credentials_invalid', reason: 'Springer Nature rejected the Open Access credential. Verify that Open Access API access is active in API Management and copy its credential into the Open Access API key field.' });
+    } else if (!res.ok) {
+      await res.body?.cancel();
+      attempts.push({ connector: 'springer_oa', status: 'failed', reason: `Springer Nature Open Access API returned HTTP ${res.status}.` });
+    } else {
       const bytes = await readCapped(res, 15_000_000);
       const text = new TextDecoder().decode(bytes);
       if (/<article[\s>]/.test(text)) {
@@ -82,7 +88,7 @@ export async function springerRetrieve(ctx: ConnectorContext, paper: PaperRef): 
       attempts.push({ connector: 'springer_oa', status: 'not_applicable', reason: 'Not available through the Springer Nature Open Access API (the article is not open access).' });
     }
   } catch (e) {
-    return [fromUpstream('springer_oa', e)];
+    attempts.push(fromUpstream('springer_oa', e));
   }
 
   if (!ctx.settings.springer?.fullTextAgreement) {
@@ -93,11 +99,17 @@ export async function springerRetrieve(ctx: ConnectorContext, paper: PaperRef): 
     });
     return attempts;
   }
+  if (!jatsKey(ctx, '/xmldata/jats')) {
+    attempts.push({ connector: 'springer_fulltext', status: 'credentials_missing', reason: 'Add your approved Full Text API credential as key/metric, copied from Springer Nature API Management.' });
+    return attempts;
+  }
   try {
     const res = await jats(ctx, '/xmldata/jats', paper.doi);
     if (res.status === 401 || res.status === 403) {
-      attempts.push({ connector: 'springer_fulltext', status: 'agreement_required', reason: 'Springer Nature refused Full Text API access for this key; an approved agreement is required.' });
+      await res.body?.cancel();
+      attempts.push({ connector: 'springer_fulltext', status: 'agreement_required', reason: 'Springer Nature refused Full Text API access. Check that the agreement is active and the Full Text API credential includes the API metric (key/metric).' });
     } else if (!res.ok) {
+      await res.body?.cancel();
       attempts.push({ connector: 'springer_fulltext', status: 'failed', reason: `Springer Nature Full Text API returned HTTP ${res.status}.` });
     } else {
       const bytes = await readCapped(res, 15_000_000);
@@ -118,31 +130,55 @@ const SUB_TEST_DOI = '10.1038/nchem.1368'; // Nature Chemistry, subscription
 
 export async function testSpringer(ctx: ConnectorContext): Promise<TestCheck[]> {
   const checks: TestCheck[] = [];
-  if (!ctx.creds.springer?.apiKey) return [{ name: 'API key', status: 'fail', message: 'No API key saved.' }];
-  try {
-    const params = new URLSearchParams({ q: `doi:${OA_TEST_DOI}`, api_key: ctx.creds.springer.apiKey });
+  const sharedKeyRejections: TestCheck[] = [];
+  const creds = ctx.creds.springer;
+  if (!creds || !Object.values(creds).some(Boolean)) return [{ name: 'API key', status: 'fail', message: 'No API key saved.' }];
+  const metaKey = creds.metaApiKey || creds.apiKey;
+  if (!metaKey) checks.push({ name: 'Meta API (discovery)', status: 'skipped', message: 'No Meta API key saved. Add it to enable Springer discovery; other discovery sources still work.' });
+  else try {
+    const params = new URLSearchParams({ q: `doi:${OA_TEST_DOI}`, p: '1', api_key: metaKey });
     const res = await policyFetch(`${BASE}/meta/v2/json?${params}`, {}, POLICY, ctx.fetch);
-    checks.push(res.ok ? { name: 'Meta API (discovery)', status: 'pass', message: 'Key accepted for metadata search.' } : { name: 'Meta API (discovery)', status: 'fail', message: `Springer Nature returned HTTP ${res.status}. The key may be invalid or not enabled for the Meta API.` });
+    const check: TestCheck = res.ok ? { name: 'Meta API (discovery)', status: 'pass', message: 'Key accepted for metadata search.' } : { name: 'Meta API (discovery)', status: 'fail', message: `Springer Nature returned HTTP ${res.status}. Verify that the Meta API is active in API Management and use its credential in the Meta API key field. An Open Access credential may not enable metadata search.` };
+    checks.push(check);
+    if (!creds.metaApiKey && (res.status === 401 || res.status === 403)) sharedKeyRejections.push(check);
     await res.body?.cancel();
   } catch (e) {
     checks.push({ name: 'Meta API (discovery)', status: 'fail', message: (e as Error).message });
   }
-  try {
-    const res = await jats(ctx, '/openaccess/jats', OA_TEST_DOI);
-    const ok = res.ok && /<article[\s>]/.test(await res.text());
-    checks.push(ok ? { name: 'Open Access full text', status: 'pass', message: 'Retrieved a known open-access article as JATS XML.' } : { name: 'Open Access full text', status: 'fail', message: `Could not retrieve a known open-access article (HTTP ${res.status}).` });
-  } catch (e) {
-    checks.push({ name: 'Open Access full text', status: 'fail', message: (e as Error).message });
-  }
+  const probeJats = async (name: string, path: '/openaccess/jats' | '/xmldata/jats', doi: string) => {
+    if (!jatsKey(ctx, path)) {
+      checks.push({ name, status: 'skipped', message: path === '/openaccess/jats' ? 'No Open Access API key saved.' : 'No Full Text API credential saved. Copy key/metric from API Management.' });
+      return;
+    }
+    try {
+      const res = await jats(ctx, path, doi);
+      if (!res.ok) {
+        await res.body?.cancel();
+        const check: TestCheck = { name, status: 'fail', message: `Springer Nature returned HTTP ${res.status}. Check that this API is active and its credential is correct.${path === '/xmldata/jats' ? ' Full Text API credentials must include the API metric (key/metric).' : ' Copy the Open Access API credential into its own field.'}` };
+        checks.push(check);
+        const explicitKey = path === '/openaccess/jats' ? creds.openAccessApiKey : creds.fullTextApiKey;
+        if (!explicitKey && (res.status === 401 || res.status === 403)) sharedKeyRejections.push(check);
+        return;
+      }
+      const xml = new TextDecoder().decode(await readCapped(res, 15_000_000));
+      const ok = /<article[\s>]/.test(xml);
+      checks.push({ name, status: ok ? 'pass' : 'warn', message: ok ? 'Retrieved the test article as JATS XML.' : 'The API responded, but did not return the test article. This can reflect coverage or agreement limits; it does not establish that the key is invalid.' });
+    } catch (e) {
+      checks.push({ name, status: 'fail', message: (e as Error).message });
+    }
+  };
+  await probeJats('Open Access full text', '/openaccess/jats', OA_TEST_DOI);
   if (!ctx.settings.springer?.fullTextAgreement) {
     checks.push({ name: 'Subscription full text', status: 'skipped', message: 'Not enabled. Subscription articles require an approved Springer Nature full-text agreement; an open-access key does not grant them.' });
   } else {
-    try {
-      const res = await jats(ctx, '/xmldata/jats', SUB_TEST_DOI);
-      const ok = res.ok && /<article[\s>]/.test(await res.text());
-      checks.push(ok ? { name: 'Subscription full text', status: 'pass', message: 'Full Text API returned a subscription article under your agreement.' } : { name: 'Subscription full text', status: 'fail', message: `Full Text API did not return the test article (HTTP ${res.status}). Your agreement may not cover it or may not be active for this key.` });
-    } catch (e) {
-      checks.push({ name: 'Subscription full text', status: 'fail', message: (e as Error).message });
+    await probeJats('Subscription full text', '/xmldata/jats', SUB_TEST_DOI);
+  }
+  // Existing single-key connections may be enabled for only one API. Preserve that working
+  // capability without labelling the whole connection invalid. Explicit API-key errors still fail.
+  if (checks.some((c) => c.status === 'pass')) {
+    for (const check of sharedKeyRejections) {
+      check.status = 'warn';
+      check.message += ' The shared key works for another API; that connection remains usable.';
     }
   }
   return checks;

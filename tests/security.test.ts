@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, setupEnv } from './helpers';
 import type { Env } from '../server/env';
 import { redact } from '../server/crypto/secrets';
+import { loadConnectorContext } from '../server/connectors';
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -93,6 +94,44 @@ describe('cross-user isolation', () => {
 });
 
 describe('credentials', () => {
+  it('does not mark an all-warning upstream outage as a verified connection', async () => {
+    const upstream = (async () => new Response('', { status: 500, headers: { 'retry-after': '99' } })) as typeof fetch;
+    const a = new Client(env, upstream);
+    await a.signup('outage_creds');
+    await a.call('PUT', '/api/connections/elsevier', { secrets: { apiKey: 'outage-test-key-not-real' } });
+    const result = await a.call('POST', '/api/connections/elsevier/test');
+    expect(result.status).toBe(200);
+    expect(result.data.ok).toBe(false);
+    expect(result.data.checks.every((c: any) => c.status === 'warn')).toBe(true);
+    expect(result.text).not.toContain('outage-test-key-not-real');
+  });
+  it('merges partial credential updates, keeps blank saved fields, and clears stale tests', async () => {
+    const a = alice();
+    await a.signup('partial_creds');
+    const userId = (await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind('partial_creds').first<{ id: string }>())!.id;
+    expect((await a.call('PUT', '/api/connections/elsevier', { secrets: { apiKey: 'original-key', instToken: 'original-token' } })).status).toBe(200);
+    expect((await a.call('PUT', '/api/connections/elsevier', { secrets: { instToken: 'new-token' } })).status).toBe(200);
+    expect((await loadConnectorContext(env, userId)).creds.elsevier).toEqual({ apiKey: 'original-key', instToken: 'new-token' });
+    expect((await a.call('PUT', '/api/connections/elsevier', { secrets: { apiKey: 'new-key', instToken: '' } })).status).toBe(200);
+    expect((await loadConnectorContext(env, userId)).creds.elsevier).toEqual({ apiKey: 'new-key', instToken: 'new-token' });
+    await env.DB.prepare("UPDATE connections SET last_test_at = '2026-01-01', last_test_json = '{}' WHERE owner_id = ?").bind(userId).run();
+    expect((await a.call('PUT', '/api/connections/elsevier', { settings: { aiProcessingAttested: true } })).status).toBe(200);
+    const connection = (await a.call('GET', '/api/connections')).data.connections.find((c: any) => c.provider === 'elsevier');
+    expect(connection.lastTest).toBeNull();
+    expect(connection.lastTestAt).toBeNull();
+  });
+  it('accepts API-specific Springer credentials without a shared key and preserves existing keys', async () => {
+    const a = alice();
+    await a.signup('springer_creds');
+    const userId = (await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind('springer_creds').first<{ id: string }>())!.id;
+    expect((await a.call('PUT', '/api/connections/springer', { secrets: { openAccessApiKey: 'oa-secret-key' } })).status).toBe(200);
+    expect((await a.call('PUT', '/api/connections/springer', { secrets: { metaApiKey: 'meta-secret-key', openAccessApiKey: '', fullTextApiKey: 'full-secret/metric' } })).status).toBe(200);
+    expect((await loadConnectorContext(env, userId)).creds.springer).toEqual({ openAccessApiKey: 'oa-secret-key', metaApiKey: 'meta-secret-key', fullTextApiKey: 'full-secret/metric' });
+    const listing = await a.call('GET', '/api/connections');
+    expect(listing.text).not.toContain('secret-key');
+    expect(listing.text).not.toContain('full-secret');
+    expect(listing.data.connections.find((c: any) => c.provider === 'springer').savedFields).toEqual(['openAccessApiKey', 'metaApiKey', 'fullTextApiKey']);
+  });
   it('stores publisher credentials encrypted, never returns them, and supports revocation', async () => {
     const a = alice();
     await a.signup('cred_user');

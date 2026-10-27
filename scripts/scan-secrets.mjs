@@ -11,7 +11,7 @@ const patterns = [
   ['Meta API key', /LLM_\d{3,}[A-Za-z0-9_-]{16,}/],
   ['Private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ['Cloudflare token assignment', /CLOUDFLARE_API_TOKEN\s*=\s*[A-Za-z0-9_-]{20,}/],
-  ['Generic secret assignment', /(MODEL_API_KEY|CREDENTIALS_KEY|ELSEVIER_API_KEY|ELSEVIER_INSTTOKEN|WILEY_TDM_TOKEN|SPRINGER_API_KEY)\s*=\s*['"]?[A-Za-z0-9+/_=-]{12,}/],
+  ['Generic secret assignment', /(MODEL_API_KEY|CREDENTIALS_KEY|ELSEVIER_API_KEY|ELSEVIER_INSTTOKEN|WILEY_TDM_TOKEN|SPRINGER_(?:API_KEY|META_API_KEY|OA_API_KEY|FULLTEXT_API_KEY))[\t ]*=[\t ]*['"]?[A-Za-z0-9+/_=-]{12,}/],
   ['Bearer token', /Bearer\s+[A-Za-z0-9._-]{30,}/],
   ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{30,}/],
   ['Email address', /[A-Za-z0-9._%+-]+@(?!users\.noreply\.github\.com)[A-Za-z0-9-]+\.[A-Za-z.]{2,}/],

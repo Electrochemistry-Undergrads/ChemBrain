@@ -15,7 +15,7 @@ const vars: Record<string, string> = {};
 if (existsSync('.dev.vars.live-test')) {
   for (const line of readFileSync('.dev.vars.live-test', 'utf8').split('\n')) {
     const m = /^([A-Z_]+)=(.*)$/.exec(line.trim());
-    if (m && m[2]) vars[m[1]] = m[2];
+    if (m && m[2]) vars[m[1]] = m[2].trim().replace(/^(['"])(.*)\1$/, '$2');
   }
 }
 const secrets = Object.values(vars);
@@ -28,12 +28,21 @@ describe('live integrations', () => {
   it.skipIf(!vars.ELSEVIER_API_KEY)('Elsevier', async () => {
     const checks = await testElsevier(ctx({ elsevier: { apiKey: vars.ELSEVIER_API_KEY, instToken: vars.ELSEVIER_INSTTOKEN || undefined } }));
     show('Elsevier', checks);
-    expect(checks[0].status).not.toBe('fail');
+    expect(checks.some((c) => c.name === 'API key' && c.status === 'pass')).toBe(true);
+    expect(checks.some((c) => c.status === 'fail')).toBe(false);
   });
-  it.skipIf(!vars.SPRINGER_API_KEY)('Springer Nature', async () => {
-    const checks = await testSpringer(ctx({ springer: { apiKey: vars.SPRINGER_API_KEY } }));
+  it.skipIf(![vars.SPRINGER_API_KEY, vars.SPRINGER_META_API_KEY, vars.SPRINGER_OA_API_KEY, vars.SPRINGER_FULLTEXT_API_KEY].some(Boolean))('Springer Nature', async () => {
+    const context = ctx({ springer: {
+      apiKey: vars.SPRINGER_API_KEY || undefined,
+      metaApiKey: vars.SPRINGER_META_API_KEY || undefined,
+      openAccessApiKey: vars.SPRINGER_OA_API_KEY || undefined,
+      fullTextApiKey: vars.SPRINGER_FULLTEXT_API_KEY || undefined,
+    } });
+    context.settings = { springer: { fullTextAgreement: vars.SPRINGER_FULLTEXT_AGREEMENT === 'true' } };
+    const checks = await testSpringer(context);
     show('Springer Nature', checks);
-    expect(checks[0].status).not.toBe('fail');
+    expect(checks.some((c) => c.status === 'pass')).toBe(true);
+    expect(checks.some((c) => c.status === 'fail')).toBe(false);
   });
   it.skipIf(!vars.WILEY_TDM_TOKEN)('Wiley', async () => {
     const checks = await testWiley(ctx({ wiley: { tdmToken: vars.WILEY_TDM_TOKEN } }));

@@ -5,7 +5,7 @@ export type Provider = 'elsevier' | 'wiley' | 'springer';
 export interface Credentials {
   elsevier?: { apiKey: string; instToken?: string };
   wiley?: { tdmToken: string };
-  springer?: { apiKey: string };
+  springer?: { apiKey?: string; metaApiKey?: string; openAccessApiKey?: string; fullTextApiKey?: string };
 }
 
 export interface ConnectionSettings {

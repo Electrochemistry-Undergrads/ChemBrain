@@ -98,19 +98,25 @@ export async function testWiley(ctx: ConnectorContext): Promise<TestCheck[]> {
   const probe = async (doi: string) => {
     const wait = await wileyReserve(ctx.env, ctx.userId);
     if (wait > 0) await sleep(wait);
-    const res = await policyFetch(API + encodeURIComponent(doi), { headers: { 'Wiley-TDM-Client-Token': token } }, { ...POLICY, maxRedirects: 0, redirectHosts: [] }, ctx.fetch).catch((e) => e as Error);
-    if (res instanceof Error) return /redirect/.test(res.message) ? 302 : -1;
-    await res.body?.cancel();
-    return res.status;
+    try {
+      const res = await policyFetch(API + encodeURIComponent(doi), { headers: { 'Wiley-TDM-Client-Token': token } }, { ...POLICY, followRedirects: false }, ctx.fetch);
+      const location = res.headers.get('location');
+      const target = location ? new URL(location, API) : null;
+      const offered = res.status === 200 || (res.status >= 300 && res.status < 400 && target?.protocol === 'https:' && !/\/(login|signin|sign-in)(\/|$)/i.test(target.pathname));
+      await res.body?.cancel();
+      return { status: res.status, offered, error: null };
+    } catch (e) {
+      return { status: null, offered: false, error: (e as Error).message };
+    }
   };
   const checks: TestCheck[] = [];
   const oa = await probe(OA_TEST_DOI);
-  if (oa === 403) return [{ name: 'TDM token', status: 'fail', message: 'Wiley says the token is invalid or not registered. Re-copy it from your Wiley Online Library account (Text and Data Mining).' }];
-  if (oa === 302 || oa === 200) checks.push({ name: 'TDM token', status: 'pass', message: 'Wiley accepted the token and offered an open-access test article.' });
-  else checks.push({ name: 'TDM token', status: 'fail', message: oa === -1 ? 'Could not reach Wiley.' : `Unexpected response from Wiley (HTTP ${oa}).` });
+  if (oa.status === 403) return [{ name: 'TDM token', status: 'fail', message: 'Wiley says the token is invalid or not registered. Re-copy it from your Wiley Online Library account (Text and Data Mining).' }];
+  if (oa.offered) checks.push({ name: 'TDM token', status: 'pass', message: 'Wiley accepted the token and offered an open-access test article.' });
+  else checks.push({ name: 'TDM token', status: 'fail', message: oa.error || `Wiley did not offer the open-access test article (HTTP ${oa.status}).` });
   const sub = await probe(SUB_TEST_DOI);
-  if (sub === 302 || sub === 200) checks.push({ name: 'Subscription access', status: 'pass', message: 'Wiley offered a subscription test article to ChemBrain’s server.' });
-  else if (sub === 404) checks.push({ name: 'Subscription access', status: 'warn', message: 'No subscription access from ChemBrain’s servers. Wiley serves subscription articles only to your institution’s network; open-access articles still work, and you can upload PDFs you can open.' });
-  else checks.push({ name: 'Subscription access', status: 'warn', message: `Could not confirm subscription access (HTTP ${sub}).` });
+  if (sub.offered) checks.push({ name: 'Subscription access', status: 'pass', message: 'Wiley offered a subscription test article to ChemBrain’s server.' });
+  else if (sub.status === 404 || (sub.status === 403 && oa.offered)) checks.push({ name: 'Subscription access', status: 'warn', message: `Wiley did not grant the subscription test article from ChemBrain’s servers (HTTP ${sub.status}). The open-access test accepted your token. Subscription access can require your institution’s network or additional publisher permissions; upload PDFs you can open.` });
+  else checks.push({ name: 'Subscription access', status: 'warn', message: sub.error || `Could not confirm subscription access (HTTP ${sub.status}).` });
   return checks;
 }
