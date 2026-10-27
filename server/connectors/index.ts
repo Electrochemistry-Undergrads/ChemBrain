@@ -84,7 +84,7 @@ export async function discover(ctx: ConnectorContext, queries: string[], perSour
       ['Crossref', crossrefSearch(ctx.env, q, perSource, ctx.fetch)],
       ['Europe PMC', europePmcSearch(q, perSource, ctx.fetch)],
     ];
-    if (ctx.creds.springer?.apiKey) jobs.push(['Springer Nature', springerSearch(ctx, q, perSource)]);
+    if (ctx.creds.springer?.metaApiKey || ctx.creds.springer?.apiKey) jobs.push(['Springer Nature', springerSearch(ctx, q, perSource)]);
     const settled = await Promise.allSettled(jobs.map((j) => j[1]));
     settled.forEach((r, i) => {
       if (r.status === 'fulfilled') r.value.forEach((c) => add(c));
