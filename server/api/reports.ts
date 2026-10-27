@@ -167,8 +167,7 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
   L.push(`# ${d.project.name}`, '');
   if (d.project.demonstration) L.push('> **Demonstration project.** Papers are bundled CC BY 4.0 copies from Europe PMC, not live publisher retrievals.', '');
   L.push(`> ${d.notice}`, '', `Exported ${d.exportedAt}${d.report ? ` · Analysis model: ${d.report.model} · Report generated ${d.report.createdAt}` : ''}`, '');
-  L.push('## Product brief', '');
-  for (const [k, v] of Object.entries(brief)) if (v) L.push(`- **${k.replace(/([A-Z])/g, ' $1').toLowerCase()}:** ${v}`);
+  L.push('## Description', '', brief.description ?? '_No description._');
   L.push('', '## Retrieval coverage', '');
   const c = d.coverage;
   L.push(`| Metric | Count |`, `|---|---|`);

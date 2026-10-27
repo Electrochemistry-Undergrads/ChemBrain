@@ -29,7 +29,8 @@ There is no separate backend or background Worker. Long work is split into small
 | Authentication and authorization | `server/auth/`, `server/api/access.ts` | PBKDF2 passwords (named accounts), guest workspaces, hashed session tokens, CSRF check, D1 rate limits; owner-scoped lookups |
 | Credential encryption | `server/crypto/secrets.ts` | AES-256-GCM, HKDF per user, AAD = user:provider; redaction helper |
 | Job orchestration | `server/jobs/runner.ts`, `server/jobs/documents.ts` | leased D1 tasks |
-| User interface | `src/` | dashboard, brief, papers, workspace, results, connections, your-data |
+| Search planning without Meta | `server/search/keywords.ts` | keyword queries from the free-text description |
+| User interface | `src/` | one-box search (dashboard and Describe tab, `src/lib/search.ts`), papers, workspace, results, connections, your data |
 
 ## Data model (D1)
 
@@ -65,7 +66,7 @@ The validated document is then chunked into pieces of at most 3,500 characters. 
 
 ## Meta stages
 
-1. **Search planning:** brief → interpretation, target properties, 4–8 queries. A Meta relevance screen of the top 40 candidates (title and abstract) follows.
+1. **Search planning:** the researcher's free-text description → interpretation (with stated assumptions), inferred target properties, 4–8 queries. A Meta relevance screen of the top 40 candidates (title and abstract) follows. Both run automatically from one **Find papers** click (`src/lib/search.ts`). Without Meta, queries are the description's keywords and ranking is keyword overlap; both are labelled as such in the UI.
 2. **Extraction:** every chunk of each permitted document is processed, in windows of about 14,000 characters. Each item carries `chunk_ref`, a verbatim quote, the value as written, and the unit as written.
 3. **Checking:** deterministic first: the quote must occur in the cited chunk (whitespace, hyphenation, and ligature tolerant), and the value must occur in the quote. Then Meta judges each remaining item: supported, partially supported, or unsupported.
 4. **Comparison and proposal:** only checked evidence (supported or partially supported) is sent. All `E#` and `P#` references in the output are validated, unknown ones are removed and counted, and uncited performance claims are dropped.
