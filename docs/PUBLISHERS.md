@@ -9,6 +9,19 @@ The AI-processing checkbox on each card is separate from access. Tick it only if
 
 ## Elsevier / ScienceDirect
 
+### Use your browser's network on the hosted website
+
+When a key works from your computer but fails from Cloudflare, use **Elsevier from this browser**, available under Publisher connections and on a project's Papers tab:
+
+1. In Elsevier's key settings, set CORS Domains to `https://chembrain.pages.dev` (no trailing slash). For a preview deployment, add that preview's exact origin too.
+2. Enter your API key in **Elsevier API key for this browser**, then choose **Use this browser** or **Test browser connection**. Never enter an institutional token into browser mode.
+3. On the project's **Papers** tab, select Elsevier papers and click **Retrieve Elsevier using this browser**. The browser calls `api.elsevier.com` directly using your current network, then imports each XML file through ChemBrain's existing owner-scoped identity, completeness, and parsing checks.
+4. Click **Analyse selected** after retrieval. Subscription text needs the browser mode's explicit AI-processing confirmation; open licences retain their existing handling.
+
+The key is held only in tab memory and sent to Elsevier in a header, never in a URL, browser storage, the import request, or model inputs. Refreshing, closing the tab, changing accounts, or choosing **Forget browser key** clears it. Saved server keys are never returned to the browser. CORS, ScienceDirect API permissions, and your network's applicable access rights still apply. The browser stays on the hosted ChemBrain website; no local server is required.
+
+### Server connection
+
 - **Docs:** https://dev.elsevier.com/sd_apis.html · https://dev.elsevier.com/tecdoc_api_authentication.html
 - **Credentials:** an API key from dev.elsevier.com, plus an optional **institutional token** from your library.
 - **Endpoints used:**

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { ACCESS, AI, ANALYSIS, CONNECTOR_NAME, PARSE, PROVIDER_NAME, RETRIEVAL } from '../../lib/labels';
@@ -6,6 +6,8 @@ import { Badge, Drawer, Notice, Spinner, StatusBadge } from '../../components/ui
 import { Coverage } from './Coverage';
 import { SearchedFor } from './BriefTab';
 import type { ProjectData } from '../Project';
+import { BrowserElsevier } from '../../components/BrowserElsevier';
+import { browserElsevierState, importBrowserElsevierPaper, subscribeBrowserElsevier } from '../../lib/elsevier-browser';
 
 export interface Paper {
   id: string;
@@ -51,6 +53,8 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad' | 'warn'; text: string } | null>(null);
   const [doi, setDoi] = useState('');
   const [upload, setUpload] = useState<Paper | null>(null);
+  const browser = useSyncExternalStore(subscribeBrowserElsevier, browserElsevierState);
+  const [browserProgress, setBrowserProgress] = useState('');
   const nav = useNavigate();
   const load = () => api<{ papers: Paper[] }>(`/api/projects/${id}/papers`).then((r) => setPapers(r.papers));
   useEffect(() => {
@@ -84,6 +88,31 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
     act('sel', () => api(`/api/projects/${id}/papers/select`, { body: { ids, selected: true } }));
   };
   const analyse = () => act('job', () => api(`/api/projects/${id}/jobs`, { method: 'POST' }), () => nav(`/projects/${id}/workspace`));
+  const retrieveInBrowser = async () => {
+    const targets = (papers ?? []).filter((p) => p.selected && p.provider === 'elsevier' && p.doi && p.retrieval_status !== 'full_text_retrieved');
+    setBusy('browser');
+    setMsg(null);
+    let imported = 0;
+    const failures: string[] = [];
+    try {
+      for (const [index, paper] of targets.entries()) {
+        setBrowserProgress(`Retrieving ${index + 1} of ${targets.length}…`);
+        try {
+          const result = await importBrowserElsevierPaper(id, paper.id, paper.doi!);
+          if (result.completeness === 'complete' || result.completeness === 'partial') imported++;
+          else failures.push(`${paper.title.slice(0, 65)}: the document was imported but could not be parsed completely.`);
+        } catch (error) {
+          failures.push(`${paper.title.slice(0, 65)}: ${(error as Error).message}`);
+          if (!browserElsevierState().enabled) break;
+        }
+      }
+      await load();
+      reload();
+      setMsg({ tone: failures.length ? 'warn' : 'good', text: `${imported} Elsevier paper(s) retrieved through your browser and imported. ${failures.join(' ')}${imported ? ' You can now analyse the selected papers.' : ''}` });
+    } catch (error) {
+      setMsg({ tone: 'bad', text: (error as Error).message });
+    } finally { setBusy(null); setBrowserProgress(''); }
+  };
 
   if (!papers) return <Spinner />;
   const shown = papers.filter((p) => !filter || `${p.title} ${p.doi} ${p.venue} ${p.publisher}`.toLowerCase().includes(filter.toLowerCase()));
@@ -99,6 +128,7 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
         </p>
       )}
       {data.project.searchPlan?.queries?.length > 0 && <SearchedFor plan={data.project.searchPlan} />}
+      {papers.some((p) => p.provider === 'elsevier') && <BrowserElsevier />}
       <div className="toolbar">
         <label className="sr-only" htmlFor="pf">
           Filter papers
@@ -121,6 +151,11 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
         <button className="btn btn-ghost" onClick={() => selectTop(8)} disabled={busy !== null}>
           Select top 8
         </button>
+        {browser.enabled && papers.some((p) => p.selected && p.provider === 'elsevier' && p.doi && p.retrieval_status !== 'full_text_retrieved') && (
+          <button className="btn" disabled={busy !== null} onClick={retrieveInBrowser}>
+            {busy === 'browser' ? browserProgress : 'Retrieve Elsevier using this browser'}
+          </button>
+        )}
         <button className="btn btn-primary" onClick={analyse} disabled={busy !== null || !selected}>
           Analyse {selected} selected
         </button>
