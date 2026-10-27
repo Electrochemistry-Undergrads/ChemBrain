@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, setupEnv } from './helpers';
 import type { Env } from '../server/env';
-import { redact } from '../server/crypto/secrets';
+import { encryptSecret, redact } from '../server/crypto/secrets';
 import { loadConnectorContext } from '../server/connectors';
 
 let env: Env;
@@ -120,17 +120,41 @@ describe('credentials', () => {
     expect(connection.lastTest).toBeNull();
     expect(connection.lastTestAt).toBeNull();
   });
-  it('accepts API-specific Springer credentials without a shared key and preserves existing keys', async () => {
+  it('accepts only the active Springer OA field and preserves it on blank updates', async () => {
     const a = alice();
     await a.signup('springer_creds');
     const userId = (await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind('springer_creds').first<{ id: string }>())!.id;
     expect((await a.call('PUT', '/api/connections/springer', { secrets: { openAccessApiKey: 'oa-secret-key' } })).status).toBe(200);
     expect((await a.call('PUT', '/api/connections/springer', { secrets: { metaApiKey: 'meta-secret-key', openAccessApiKey: '', fullTextApiKey: 'full-secret/metric' } })).status).toBe(200);
-    expect((await loadConnectorContext(env, userId)).creds.springer).toEqual({ openAccessApiKey: 'oa-secret-key', metaApiKey: 'meta-secret-key', fullTextApiKey: 'full-secret/metric' });
+    expect((await loadConnectorContext(env, userId)).creds.springer).toEqual({ openAccessApiKey: 'oa-secret-key' });
     const listing = await a.call('GET', '/api/connections');
     expect(listing.text).not.toContain('secret-key');
     expect(listing.text).not.toContain('full-secret');
-    expect(listing.data.connections.find((c: any) => c.provider === 'springer').savedFields).toEqual(['openAccessApiKey', 'metaApiKey', 'fullTextApiKey']);
+    expect(listing.data.connections.find((c: any) => c.provider === 'springer').savedFields).toEqual(['openAccessApiKey']);
+  });
+  it('uses an existing shared Springer key for OA without activating removed API scopes', async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      calls.push(url.pathname);
+      expect(url.searchParams.get('api_key')).toBe('legacy-key-not-real');
+      return new Response('<response><records><article><body/></article></records></response>');
+    }) as typeof fetch;
+    const a = new Client(env, fetchImpl);
+    await a.signup('legacy_springer');
+    const userId = (await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind('legacy_springer').first<{ id: string }>())!.id;
+    const cipher = await encryptSecret(env.CREDENTIALS_KEY!, userId, 'springer', JSON.stringify({ apiKey: 'legacy-key-not-real', metaApiKey: 'removed-meta-key', fullTextApiKey: 'removed-full-key/metric' }));
+    await env.DB.prepare('INSERT INTO connections (id, owner_id, provider, secret_ciphertext, secret_iv, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind('legacy_springer_connection', userId, 'springer', cipher.ciphertext, cipher.iv, JSON.stringify({ savedFields: ['apiKey', 'metaApiKey', 'fullTextApiKey'], fullTextAgreement: true, aiProcessingAttested: true }), '2026-10-27', '2026-10-27').run();
+    const context = await loadConnectorContext(env, userId);
+    expect(context.creds.springer).toEqual({ openAccessApiKey: 'legacy-key-not-real' });
+    expect(context.settings.springer).toEqual({ fullTextAgreement: false, aiProcessingAttested: false });
+    const test = await a.call('POST', '/api/connections/springer/test');
+    expect(test.data.ok).toBe(true);
+    expect(test.data.checks.map((c: any) => c.name)).toEqual(['Open Access full text']);
+    expect(calls).toEqual(['/openaccess/jats']);
+    expect((await a.call('PUT', '/api/connections/springer', { secrets: { openAccessApiKey: 'replacement-oa-key' } })).status).toBe(200);
+    expect((await a.call('GET', '/api/connections')).data.connections.find((c: any) => c.provider === 'springer').savedFields).toEqual(['openAccessApiKey']);
   });
   it('stores publisher credentials encrypted, never returns them, and supports revocation', async () => {
     const a = alice();

@@ -12,7 +12,7 @@ const FIELDS: Record<Provider, { key: string; required: boolean }[]> = {
     { key: 'instToken', required: false },
   ],
   wiley: [{ key: 'tdmToken', required: true }],
-  springer: ['apiKey', 'metaApiKey', 'openAccessApiKey', 'fullTextApiKey'].map((key) => ({ key, required: false })),
+  springer: [{ key: 'openAccessApiKey', required: true }],
 };
 
 function asProvider(p: string): Provider {
@@ -57,8 +57,8 @@ export const connectionRoutes: Route[] = [
       const prevSettings = parseJson<ConnectionSettings & { savedFields?: string[] }>(existing?.settings_json, {});
       const settings: ConnectionSettings & { savedFields?: string[] } = {
         ...prevSettings,
-        aiProcessingAttested: b.settings?.aiProcessingAttested ?? prevSettings.aiProcessingAttested ?? false,
-        ...(provider === 'springer' ? { fullTextAgreement: b.settings?.fullTextAgreement ?? prevSettings.fullTextAgreement ?? false } : {}),
+        aiProcessingAttested: provider === 'springer' ? false : b.settings?.aiProcessingAttested ?? prevSettings.aiProcessingAttested ?? false,
+        ...(provider === 'springer' ? { fullTextAgreement: false } : {}),
       };
       let cipher: { ciphertext: string; iv: string } | null = null;
       if (b.secrets) {
@@ -69,6 +69,10 @@ export const connectionRoutes: Route[] = [
           } catch {
             throw new ApiError(409, 'credentials_unreadable', 'The saved credentials can no longer be decrypted. Remove this connection and enter the credentials again.');
           }
+        }
+        if (provider === 'springer') {
+          if (!clean.openAccessApiKey && clean.apiKey) clean.openAccessApiKey = clean.apiKey;
+          for (const key of Object.keys(clean)) if (key !== 'openAccessApiKey') delete clean[key];
         }
         for (const f of FIELDS[provider]) {
           const input = b.secrets[f.key];

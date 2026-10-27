@@ -2,14 +2,24 @@ import type { Env } from '../env';
 import { decryptSecret } from '../crypto/secrets';
 import { parseJson } from '../util';
 import { crossrefSearch } from './crossref';
-import { elsevierRetrieve, testElsevier } from './elsevier';
+import { testElsevier } from './elsevier';
 import { europePmcRetrieve, europePmcSearch } from './europepmc';
 import { publisherOf } from './publishers';
-import { springerRetrieve, springerSearch, testSpringer } from './springer';
+import { springerRetrieve, testSpringer } from './springer';
 import type { Candidate, ConnectionSettings, ConnectorContext, Credentials, PaperRef, Provider, RetrievalAttempt, TestCheck } from './types';
 import { testWiley, wileyRetrieve } from './wiley';
 
 export const PROVIDERS: Provider[] = ['elsevier', 'wiley', 'springer'];
+
+function springerOpenAccessContext(ctx: ConnectorContext): ConnectorContext {
+  const stored = ctx.creds.springer;
+  const key = stored?.openAccessApiKey || stored?.apiKey;
+  return {
+    ...ctx,
+    creds: { ...ctx.creds, springer: key ? { openAccessApiKey: key } : undefined },
+    settings: { ...ctx.settings, springer: { aiProcessingAttested: false, fullTextAgreement: false } },
+  };
+}
 
 /** Loads and decrypts this user's own publisher credentials. Never shared across users. */
 export async function loadConnectorContext(env: Env, userId: string, fetchImpl: typeof fetch = fetch): Promise<ConnectorContext> {
@@ -20,10 +30,18 @@ export async function loadConnectorContext(env: Env, userId: string, fetchImpl: 
   const settings: Partial<Record<Provider, ConnectionSettings>> = {};
   for (const r of results) {
     settings[r.provider] = parseJson<ConnectionSettings>(r.settings_json, {});
+    if (r.provider === 'springer') settings.springer = { aiProcessingAttested: false, fullTextAgreement: false };
     if (r.secret_ciphertext && r.secret_iv && env.CREDENTIALS_KEY) {
       try {
         const plain = JSON.parse(await decryptSecret(env.CREDENTIALS_KEY, userId, r.provider, r.secret_ciphertext, r.secret_iv));
-        (creds as Record<string, unknown>)[r.provider] = plain;
+        if (r.provider === 'springer') {
+          // The website exposes OA only. Keep older shared keys usable for OA without reviving
+          // hidden metadata/full-text credentials or agreement settings.
+          const key = plain.openAccessApiKey || plain.apiKey;
+          if (key) creds.springer = { openAccessApiKey: key };
+        } else {
+          (creds as Record<string, unknown>)[r.provider] = plain;
+        }
       } catch {
         /* undecryptable (key rotated): treated as missing credentials */
       }
@@ -41,8 +59,8 @@ export async function retrievePaper(ctx: ConnectorContext, paper: PaperRef): Pro
   const attempts: RetrievalAttempt[] = [];
   const done = () => ({ attempts, success: attempts.find((a) => a.status === 'full_text' && a.file) ?? null, provider });
 
-  if (provider === 'elsevier') attempts.push(await elsevierRetrieve(ctx, paper));
-  if (provider === 'springer') attempts.push(...(await springerRetrieve(ctx, paper)));
+  if (provider === 'elsevier') attempts.push({ connector: 'elsevier', status: 'not_applicable', reason: 'Use Elsevier from this browser in the Papers tab to retrieve and import this paper through your own network before analysis.' });
+  if (provider === 'springer') attempts.push(...(await springerRetrieve(springerOpenAccessContext(ctx), paper)).filter((a) => a.connector === 'springer_oa'));
   if (done().success) return done();
   // Europe PMC open-access copies are cheap and need no credentials; try before Wiley's slow,
   // rate-limited PDF route.
@@ -55,14 +73,14 @@ export async function retrievePaper(ctx: ConnectorContext, paper: PaperRef): Pro
 export async function testConnection(ctx: ConnectorContext, provider: Provider): Promise<TestCheck[]> {
   if (provider === 'elsevier') return testElsevier(ctx);
   if (provider === 'wiley') return testWiley(ctx);
-  return testSpringer(ctx);
+  return (await testSpringer(springerOpenAccessContext(ctx))).filter((c) => c.name === 'Open Access full text' || c.name === 'API key');
 }
 
 function titleKey(t: string) {
   return t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120);
 }
 
-/** Runs each query against Crossref, Europe PMC and (with the user's key) Springer Nature; dedupes by DOI and title. */
+/** Runs each query against Crossref and Europe PMC; dedupes by DOI and title. */
 export async function discover(ctx: ConnectorContext, queries: string[], perSource = 12) {
   const seen = new Map<string, Candidate>();
   const errors: string[] = [];
@@ -84,7 +102,6 @@ export async function discover(ctx: ConnectorContext, queries: string[], perSour
       ['Crossref', crossrefSearch(ctx.env, q, perSource, ctx.fetch)],
       ['Europe PMC', europePmcSearch(q, perSource, ctx.fetch)],
     ];
-    if (ctx.creds.springer?.metaApiKey || ctx.creds.springer?.apiKey) jobs.push(['Springer Nature', springerSearch(ctx, q, perSource)]);
     const settled = await Promise.allSettled(jobs.map((j) => j[1]));
     settled.forEach((r, i) => {
       if (r.status === 'fulfilled') r.value.forEach((c) => add(c));

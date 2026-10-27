@@ -6,26 +6,16 @@ import { BrowserElsevier } from '../components/BrowserElsevier';
 interface Conn {
   provider: 'elsevier' | 'wiley' | 'springer';
   configured: boolean;
-  settings: { aiProcessingAttested?: boolean; fullTextAgreement?: boolean };
+  settings: { aiProcessingAttested?: boolean };
   savedFields: string[];
   lastTestAt: string | null;
   lastTest: { ok: boolean; checks: { name: string; status: string; message: string }[] } | null;
   updatedAt: string | null;
 }
 
-const INFO: Record<Conn['provider'], { title: string; fields: { key: string; label: string; required: boolean; help: string }[]; about: string[]; docs: string }> = {
-  elsevier: {
-    title: 'Elsevier · ScienceDirect',
-    fields: [
-      { key: 'apiKey', label: 'API key', required: true, help: 'From dev.elsevier.com → My API Key. It identifies the application; on its own it does not grant article access.' },
-      { key: 'instToken', label: 'Institutional token (optional)', required: false, help: 'Issued by your library or Elsevier to your institution. It lets subscription entitlement work from outside the campus network.' },
-    ],
-    about: [
-      'ChemBrain retrieves structured full-text XML through the Article Retrieval API after checking entitlement.',
-      'Elsevier grants subscription access by campus IP address or an institutional token. ChemBrain runs in the cloud, so your campus IP access does not carry over. Even open-access retrieval depends on your key’s API permissions and Elsevier’s access rules.',
-    ],
-    docs: 'https://dev.elsevier.com/tecdoc_api_authentication.html',
-  },
+type ServerConn = Omit<Conn, 'provider'> & { provider: 'wiley' | 'springer' };
+
+const INFO: Record<ServerConn['provider'], { title: string; fields: { key: string; label: string; required: boolean; help: string }[]; about: string[]; docs: string }> = {
   wiley: {
     title: 'Wiley · Wiley-VCH',
     fields: [{ key: 'tdmToken', label: 'TDM client token', required: true, help: 'Sign in to Wiley Online Library, open Text and Data Mining, accept the licence, and copy your token.' }],
@@ -39,15 +29,11 @@ const INFO: Record<Conn['provider'], { title: string; fields: { key: string; lab
   springer: {
     title: 'Springer Nature',
     fields: [
-      { key: 'apiKey', label: 'Shared API key (optional)', required: false, help: 'From dev.springernature.com → API Management. Use this if your key is enabled for multiple APIs. API-specific credentials below take precedence; leave saved fields blank to keep them.' },
-      { key: 'metaApiKey', label: 'Meta API key (optional · discovery)', required: false, help: 'Copy the credential for the Meta API. This API searches metadata and abstracts; it is separate from the Meta AI model.' },
-      { key: 'openAccessApiKey', label: 'Open Access API key (optional · full text)', required: false, help: 'Copy the credential for the Open Access API. You can connect just this API without a Meta API key.' },
-      { key: 'fullTextApiKey', label: 'Full Text API credential (optional · key/metric)', required: false, help: 'For an approved TDM agreement: copy the complete key/metric value from API Management after activating the Full Text API.' },
+      { key: 'openAccessApiKey', label: 'Open Access API key', required: true, help: 'From dev.springernature.com → API Management. Copy the credential for the Open Access API to retrieve open-access full text.' },
     ],
     about: [
-      'Discovery uses the Meta API; open-access full text comes from the Open Access API as JATS XML.',
-      'Activate the APIs you need in Springer Nature API Management. Save a shared key or each API’s credential below; you only need to fill in the APIs you use.',
-      'Subscription articles (for example most Nature-branded journals) need the separate Full Text API under an approved text-and-data-mining agreement. A free or open-access key does not unlock them.',
+      'Retrieves open-access Springer Nature articles as JATS XML through the Open Access API.',
+      'Paper discovery uses Crossref and Europe PMC. Activate Open Access API access in Springer Nature API Management before testing your key.',
     ],
     docs: 'https://dev.springernature.com/docs/api-endpoints/open-access/',
   },
@@ -88,7 +74,7 @@ export function ConnectionsPage() {
       </div>
       <BrowserElsevier />
       <div className="conn-grid">
-        {data.connections.map((c) => (
+        {data.connections.filter((c): c is ServerConn => c.provider !== 'elsevier').map((c) => (
           <ConnectionCard key={c.provider} conn={c} onChange={load} canSave={data.encryptionConfigured} />
         ))}
       </div>
@@ -102,21 +88,21 @@ export function ConnectionsPage() {
   );
 }
 
-function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () => Promise<void>; canSave: boolean }) {
+function ConnectionCard({ conn, onChange, canSave }: { conn: ServerConn; onChange: () => Promise<void>; canSave: boolean }) {
   const info = INFO[conn.provider];
   const [values, setValues] = useState<Record<string, string>>({});
   const [attest, setAttest] = useState(Boolean(conn.settings.aiProcessingAttested));
-  const [agreement, setAgreement] = useState(Boolean(conn.settings.fullTextAgreement));
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const test = conn.lastTest;
   const hasSecrets = info.fields.some((f) => values[f.key]?.trim());
-  const dirty = hasSecrets || attest !== Boolean(conn.settings.aiProcessingAttested) || agreement !== Boolean(conn.settings.fullTextAgreement);
+  const dirty = hasSecrets || (conn.provider === 'wiley' && attest !== Boolean(conn.settings.aiProcessingAttested));
+  const checks = test?.checks.filter((c) => conn.provider !== 'springer' || c.name === 'Open Access full text' || c.name === 'API key') ?? [];
 
   const persist = async () => {
     await api(`/api/connections/${conn.provider}`, {
       method: 'PUT',
-      body: { secrets: hasSecrets ? values : undefined, settings: { aiProcessingAttested: attest, fullTextAgreement: agreement } },
+      body: { secrets: hasSecrets ? values : undefined, settings: conn.provider === 'springer' ? { aiProcessingAttested: false, fullTextAgreement: false } : { aiProcessingAttested: attest } },
     });
     setValues({});
     await onChange();
@@ -155,7 +141,6 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
       await api(`/api/connections/${conn.provider}`, { method: 'DELETE' });
       setValues({});
       setAttest(false);
-      setAgreement(false);
       await onChange();
     } catch (e) {
       setMsg({ tone: 'bad', text: (e as Error).message });
@@ -190,25 +175,19 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
               autoComplete="off"
               spellCheck={false}
               disabled={busy !== null}
-              placeholder={conn.savedFields.includes(f.key) ? 'Saved — enter a new value to replace' : ''}
+              placeholder={conn.savedFields.includes(f.key) || (conn.provider === 'springer' && conn.savedFields.includes('apiKey')) ? 'Saved — enter a new value to replace' : ''}
               value={values[f.key] ?? ''}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
             />
             <span className="hint">{f.help}</span>
           </label>
         ))}
-        {conn.provider === 'springer' && (
-          <label className="check">
-            <input type="checkbox" disabled={busy !== null} checked={agreement} onChange={(e) => setAgreement(e.target.checked)} />
-            <span>I hold an approved Springer Nature full-text (TDM) agreement for this key. Leave unchecked if you only have a free or open-access key.</span>
-          </label>
-        )}
-        <label className="check">
+        {conn.provider === 'wiley' && <label className="check">
           <input type="checkbox" disabled={busy !== null} checked={attest} onChange={(e) => setAttest(e.target.checked)} />
           <span>
             My institution’s licence with {info.title.split(' ·')[0]} permits sending subscription article text to an external AI service (Meta) for my research analysis. ChemBrain cannot infer this from subscription access; open-licence papers are analysed regardless.
           </span>
-        </label>
+        </label>}
         {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
         <div className="row">
           <button className="btn btn-primary" disabled={!canSave || busy !== null}>
@@ -227,11 +206,11 @@ function ConnectionCard({ conn, onChange, canSave }: { conn: Conn; onChange: () 
           </a>
         </div>
       </form>
-      {test && (
+      {test && checks.length > 0 && (
         <div className="test-result" aria-live="polite">
           <p className="small muted">Live test{conn.lastTestAt ? ` · ${new Date(conn.lastTestAt).toLocaleString()}` : ''}</p>
           <ul className="plain">
-            {test.checks.map((c) => (
+            {checks.map((c) => (
               <li key={c.name}>
                 <Badge tone={c.status === 'pass' ? 'good' : c.status === 'fail' ? 'bad' : c.status === 'warn' ? 'warn' : 'neutral'}>{c.status}</Badge> <strong>{c.name}:</strong> {c.message}
               </li>

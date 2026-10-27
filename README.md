@@ -3,7 +3,7 @@
 ChemBrain turns a desired chemical product or material into a research-backed development proposal. A researcher types a sentence or two describing their compound or material ("a biodegradable, water-resistant packaging film made from starch, cast from water") and clicks **Find papers**. There are no forms of parameters to fill in. ChemBrain then:
 
 1. plans literature searches with Meta's model, inferring target properties and constraints from the description (keywords from the description are used when Meta is not configured),
-2. discovers papers (Crossref, Europe PMC, Springer Nature),
+2. discovers papers (Crossref and Europe PMC),
 3. retrieves complete papers through the researcher's **own** publisher access,
 4. parses them into sections and chunks that keep their section, page, and table references,
 5. extracts ingredients, methods, conditions, and results with Meta's model,
@@ -97,9 +97,9 @@ npm run test:live
 
 ## Known limitations
 
-- **Campus-IP entitlement does not reach the cloud.** Elsevier content requires API permissions and applicable access rights even for open-access papers; a key that works on campus may need institutional-token or hosted-server access configured by Elsevier. Wiley subscription content is served only to the institution's network, so those papers show *Institutional connection required*. The researcher can upload the PDF they can open, and it gets the same identity and completeness checks.
+- **Campus-IP entitlement does not reach the cloud.** Elsevier uses the browser mode below. Wiley subscription content is served only to the institution's network, so those papers show *Institutional connection required*. The researcher can upload a PDF they can open, and it gets the same identity and completeness checks.
 - **Elsevier browser mode:** the hosted website can retrieve articles directly through your browser's network. Enter a tab-only key under **Elsevier from this browser**, then use **Retrieve Elsevier using this browser** in Papers before analysis. Add the website's exact origin to your key's CORS Domains. The key is never included in the document import or model requests. See [Publisher connections](docs/PUBLISHERS.md).
-- **Springer Nature subscription full text** needs an approved full-text (TDM) agreement. A free or open-access key retrieves open-access articles only.
+- **Springer Nature** uses only the Open Access API. Add its OA key under Publisher connections. Metadata discovery comes from Crossref and Europe PMC; subscription full-text API access is not offered on the website.
 - **ACS and RSC** offer no text-mining API for this use, so their papers need an upload.
 - **Supporting information** is listed when the XML references it, but is not retrieved automatically. The Wiley TDM API does not deliver it.
 - **PDF parsing** extracts text, not layout: tables and equations become plain text. Scanned PDFs without a text layer are reported as *Unreadable*. OCR is not performed.

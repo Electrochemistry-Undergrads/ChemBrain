@@ -3,9 +3,9 @@
 Each researcher adds their own credentials under **Publisher connections**. ChemBrain never substitutes a shared key for a user's entitlement. Each card has a live **Test connection** that makes a handful of real requests and reports pass, warn, fail, or skipped with a plain-language reason.
 At least one check must pass for the overall connection to be verified; an upstream outage with only warnings is not a successful verification.
 
-**Test connection saves your edits first.** Blank credential fields keep their saved values, so replacing an institutional token or one Springer API key does not erase the other keys. Use **Remove** to delete the entire connection. Saving credentials or settings clears the previous test result.
+**Test connection saves your edits first.** Blank credential fields keep their saved values. Use **Remove** to delete a saved server connection. Saving credentials or settings clears the previous test result.
 
-The AI-processing checkbox on each card is separate from access. Tick it only if your institution's licence permits sending that publisher's subscription text to an external AI service (Meta). Open-licence (Creative Commons) papers are analysed regardless.
+The AI-processing checkboxes for Wiley and Elsevier browser mode are separate from access. Tick one only if your institution's licence permits sending that publisher's subscription text to Meta. Springer Nature uses its Open Access API only; open-licence papers keep their existing handling.
 
 ## Elsevier / ScienceDirect
 
@@ -20,20 +20,7 @@ When a key works from your computer but fails from Cloudflare, use **Elsevier fr
 
 The key is held only in tab memory and sent to Elsevier in a header, never in a URL, browser storage, the import request, or model inputs. Refreshing, closing the tab, changing accounts, or choosing **Forget browser key** clears it. Saved server keys are never returned to the browser. CORS, ScienceDirect API permissions, and your network's applicable access rights still apply. The browser stays on the hosted ChemBrain website; no local server is required.
 
-### Server connection
-
-- **Docs:** https://dev.elsevier.com/sd_apis.html · https://dev.elsevier.com/tecdoc_api_authentication.html
-- **Credentials:** an API key from dev.elsevier.com, plus an optional **institutional token** from your library.
-- **Endpoints used:**
-  - `GET https://api.elsevier.com/content/article/entitlement/?doi={url-encoded DOI}` (XML `entitled`, including `open_access`)
-  - then `GET https://api.elsevier.com/content/article/doi/{doi}?view=FULL` (`Accept: text/xml`)
-  - Headers: `X-ELS-APIKey`, optionally `X-ELS-Insttoken`.
-- **Entitlement:** the API key only identifies the application. Subscription entitlement comes from campus IP or the institutional token. ChemBrain runs in the cloud, so campus access does not carry over. Even open-access articles require verified API entitlement and applicable access rights, as explained in [Elsevier's access documentation](https://dev.elsevier.com/tecdoc_article_access.html). An open-access licence alone does not guarantee API retrieval.
-- **Abstract-only detection:** a response without `originalText` / `ce:sections` is recorded as *Abstract only*.
-- **Limits:** Article Retrieval 10 req/s, 50,000/week. Entitlement 6 req/s. ChemBrain paces at about 6 req/s, and `QUOTA_EXCEEDED` (429) is reported explicitly.
-- **Entitlement-service failures:** a temporary 5xx from the preflight does not establish that the key is invalid. ChemBrain still tries Article Retrieval, which enforces the publisher's access permissions itself. Negative entitlement responses remain respected.
-- **Hosted-server failures:** if the publisher still returns 5xx after bounded retries, the result is an unverified service error rather than an invalid-key claim. If the key works locally but not from ChemBrain, ask your library or Elsevier to check institutional-token or hosted-server API access. The HTTP status alone cannot establish whether IP entitlement, an upstream outage, or another publisher-side condition caused it.
-- **Connection test:** entitlement for an open-access Heliyon article, with a separate Article Retrieval metadata check if the entitlement check cannot confirm access, then a subscription Electrochimica Acta article. An entitlement outage is a warning. A successful metadata check validates that API connection, not full-text or subscription access. A key must have ScienceDirect/Article Retrieval permissions; a Scopus-only key may not have them.
+The Elsevier/ScienceDirect server connection card has been removed. Automatic server retrieval does not call Elsevier, even if older server credentials are stored. Use browser mode above, or upload a PDF/XML file you can read.
 
 ## Wiley / Wiley-VCH
 
@@ -56,15 +43,13 @@ The key is held only in tab memory and sent to Elsevier in a header, never in a 
 
 ## Springer Nature
 
-- **Docs:** https://dev.springernature.com/docs/api-endpoints/open-access/ · https://dev.springernature.com/docs/api-endpoints/fulltext-api/
-- **Credentials:** activate the APIs you need at dev.springernature.com → API Management. Save a shared API key, or supply **Meta API key**, **Open Access API key**, and **Full Text API credential** separately. An API-specific value takes precedence over the shared key. Existing shared keys keep working without re-entry. A connection with only an OA key can retrieve OA articles; metadata discovery remains available through the other discovery sources.
-- **Full Text credential format:** the [Full Text API documentation](https://dev.springernature.com/docs/api-endpoints/fulltext-api/) specifies `api_key=YOUR_API_KEY/YOUR-API-METRIC`. Copy the complete `key/metric` value from API Management after activation, and enable the agreement checkbox only if your agreement is approved.
-- **Discovery:** `GET https://api.springernature.com/meta/v2/json?q=…&p=…&api_key=…`
-- **Full text:**
-  - Open access: `GET /openaccess/jats?q=doi:{doi}&api_key=…`
-  - Subscription articles use the **Full Text API** (`/xmldata/jats`). It requires an approved TDM agreement, and ChemBrain only calls it when you tick *I hold an approved full-text agreement*. **A free or open-access key never appears to unlock subscription Nature articles.** Without the agreement, the attempt is recorded as *Permission required (agreement required)*.
-- **Limits (Basic):** 100 requests/min and 500/day per API. ChemBrain paces at about 1 request per 650 ms.
-- **401/403:** check the credential and activation for the specific API that failed. Success on one API does not establish access to another. A missing optional API key is skipped in the test. For an existing shared key accepted by one API, rejection by another is a warning, keeping the working connection usable. A key rejected by all APIs, or a rejected explicitly configured API-specific credential, still fails. Failure of the OA API does not prevent trying an independently configured, approved Full Text API connection.
+- **Credential:** the **Open Access API key** from dev.springernature.com → API Management. This is the only Springer field on the website.
+- **Docs:** https://dev.springernature.com/docs/api-endpoints/open-access/
+- **Full text:** `GET /openaccess/jats?q=doi:{doi}&api_key=…` retrieves open-access JATS XML. Connection tests check only this endpoint.
+- **Discovery:** Crossref and Europe PMC find papers, including Springer Nature papers. The website does not call the Meta or subscription Full Text APIs.
+- **Existing keys:** an older shared key remains usable as an OA fallback. Removed metadata/full-text credentials and agreement settings are not activated. Saving a replacement OA key keeps only that active credential.
+- **Limits (Basic):** 100 requests/min and 500/day. ChemBrain paces requests at about one per 650 ms.
+- **401/403:** check that the key is active for the Open Access API in API Management.
 
 ## Local live tests
 
@@ -81,7 +66,7 @@ SPRINGER_FULLTEXT_API_KEY=
 SPRINGER_FULLTEXT_AGREEMENT=false
 ```
 
-Run `npm run test:live`. Leave unused values empty. `SPRINGER_API_KEY` is the shared-key fallback; the API-specific values override it. Set `SPRINGER_FULLTEXT_AGREEMENT=true` only for an approved agreement. Output contains statuses and redacted diagnostics, never credentials. Local network entitlement may differ from the deployed Cloudflare server.
+Run `npm run test:live`. These local diagnostic tools retain legacy connector checks; the website uses Elsevier browser mode and Springer OA only. Leave unused values empty. `SPRINGER_API_KEY` is the shared-key fallback; the API-specific values override it. Set `SPRINGER_FULLTEXT_AGREEMENT=true` only for an approved agreement. Output contains statuses and redacted diagnostics, never credentials. Local network entitlement may differ from the deployed Cloudflare server.
 
 ## Crossref and Europe PMC (no credentials)
 
