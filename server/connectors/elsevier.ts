@@ -9,41 +9,24 @@ import type { ConnectorContext, PaperRef, RetrievalAttempt, TestCheck } from './
  * - Article Retrieval API: /content/article/doi/{doi}?view=FULL, Accept text/xml (10 requests/s)
  * The API key identifies the application only. Subscription entitlement comes from the caller's
  * institutional IP or an institutional token (X-ELS-Insttoken). ChemBrain's servers are not on a
- * campus network, so without an institutional token only open-access articles are entitled.
+ * campus network. Open access also requires the key's API permissions and applicable access rights.
  */
 const BASE = 'https://api.elsevier.com/content/article';
 const POLICY = { service: 'Elsevier', timeoutMs: 30_000, retries: 2, minIntervalMs: 170, redirectHosts: ['api.elsevier.com'] };
 
 function headers(ctx: ConnectorContext, accept: string): Record<string, string> {
-  const h: Record<string, string> = { 'X-ELS-APIKey': ctx.creds.elsevier!.apiKey, accept, 'user-agent': 'ChemBrain/0.1 (+https://chembrain.pages.dev)' };
+  const h: Record<string, string> = { 'X-ELS-APIKey': ctx.creds.elsevier!.apiKey, accept };
   if (ctx.creds.elsevier?.instToken) h['X-ELS-Insttoken'] = ctx.creds.elsevier.instToken;
   return h;
 }
 
 const encDoi = (doi: string) => doi.split('/').map(encodeURIComponent).join('/');
-const temporaryError = (e: unknown) => e instanceof UpstreamError && e.kind === 'http' && e.status !== null && e.status >= 500;
-
-async function elsevierRequest(ctx: ConnectorContext, url: string, accept: string) {
-  try {
-    return await policyFetch(url, { headers: headers(ctx, accept) }, POLICY, ctx.fetch);
-  } catch (e) {
-    if (!temporaryError(e)) throw e;
-    // Elsevier documents apiKey/insttoken/httpAccept as equivalent query parameters. Retry this
-    // form once if its gateway fails on the header form. The URL stays on the publisher's API;
-    // policyFetch never logs it and still restricts redirects to api.elsevier.com.
-    const fallback = new URL(url);
-    fallback.searchParams.set('apiKey', ctx.creds.elsevier!.apiKey);
-    fallback.searchParams.set('httpAccept', accept);
-    if (ctx.creds.elsevier?.instToken) fallback.searchParams.set('insttoken', ctx.creds.elsevier.instToken);
-    return policyFetch(fallback.toString(), { headers: { accept, 'user-agent': 'ChemBrain/0.1 (+https://chembrain.pages.dev)' } }, { ...POLICY, retries: 0 }, ctx.fetch);
-  }
-}
 
 export async function elsevierEntitlement(ctx: ConnectorContext, doi: string): Promise<{ status: number; entitled: boolean | null; message?: string }> {
   // Query-string DOI avoids path routing/escaping problems. Use the API's default XML format
   // rather than making full-text retrieval depend on the entitlement JSON representation.
   const params = new URLSearchParams({ doi });
-  const res = await elsevierRequest(ctx, `${BASE}/entitlement/?${params}`, 'text/xml');
+  const res = await policyFetch(`${BASE}/entitlement/?${params}`, { headers: headers(ctx, 'text/xml') }, POLICY, ctx.fetch);
   if (!res.ok) {
     await res.body?.cancel();
     return { status: res.status, entitled: null };
@@ -64,6 +47,8 @@ export async function elsevierEntitlement(ctx: ConnectorContext, doi: string): P
   }
   return { status: status === 'not_found' ? 404 : res.status, entitled: ent === true || ent === 'true' || ent === 'open_access' ? true : ent === false || ent === 'false' ? false : null };
 }
+
+const temporaryError = (e: unknown) => e instanceof UpstreamError && e.kind === 'http' && e.status !== null && e.status >= 500;
 
 export async function elsevierRetrieve(ctx: ConnectorContext, paper: PaperRef): Promise<RetrievalAttempt> {
   const connector = 'elsevier';
@@ -91,7 +76,7 @@ export async function elsevierRetrieve(ctx: ConnectorContext, paper: PaperRef): 
             reason: 'Elsevier grants subscription access by campus IP address or an institutional token. ChemBrain runs in the cloud, not on your campus network, so add an institutional token from your library or upload the PDF you can open yourself.',
           };
     }
-    const res = await elsevierRequest(ctx, `${BASE}/doi/${encDoi(paper.doi)}?view=FULL`, 'text/xml');
+    const res = await policyFetch(`${BASE}/doi/${encDoi(paper.doi)}?view=FULL`, { headers: headers(ctx, 'text/xml') }, POLICY, ctx.fetch);
     if (res.status === 401) return { connector, status: 'credentials_invalid', reason: 'Elsevier rejected the API key or institutional token.' };
     if (res.status === 403) return { connector, status: ctx.creds.elsevier.instToken ? 'not_entitled' : 'institutional_connection_required', reason: 'Elsevier could not validate entitlement for the full text.' };
     if (res.status === 404) return { connector, status: 'not_found', reason: 'Elsevier has no full-text record for this DOI.' };
@@ -109,7 +94,9 @@ export async function elsevierRetrieve(ctx: ConnectorContext, paper: PaperRef): 
       file: { bytes, contentType: 'text/xml', format: 'elsevier_xml', versionLabel: 'Elsevier Article Retrieval API XML (view=FULL)' },
     };
   } catch (e) {
-    return fromUpstream(connector, e);
+    const result = fromUpstream(connector, e);
+    if (temporaryError(e)) result.reason += ' If this key works on your campus network, ask your library or Elsevier to check institutional-token or hosted-server API access; campus access does not carry over to ChemBrain.';
+    return result;
   }
 }
 
@@ -131,13 +118,13 @@ export async function testElsevier(ctx: ConnectorContext): Promise<TestCheck[]> 
       checks.push({ name: 'API key', status: 'pass', message: 'Elsevier accepted the API key.' });
     } else {
       checks.push({ name: 'Entitlement service', status: 'warn', message: `The entitlement preflight could not confirm access (HTTP ${oa.status}). Checking the Article Retrieval API separately; this does not establish that your key is invalid.` });
-      const res = await elsevierRequest(ctx, `${BASE}/doi/${encDoi(OA_TEST_DOI)}?view=META`, 'text/xml');
+      const res = await policyFetch(`${BASE}/doi/${encDoi(OA_TEST_DOI)}?view=META`, { headers: headers(ctx, 'text/xml') }, POLICY, ctx.fetch);
       const valid = res.ok && /<full-text-retrieval-response[\s>]/.test(new TextDecoder().decode(await readCapped(res, 1_000_000)));
       if (!res.ok) await res.body?.cancel();
       checks.push({ name: 'API key', status: valid ? 'pass' : 'fail', message: valid ? 'Elsevier accepted the key for Article Retrieval. Full-text access is checked separately for each paper.' : `Article Retrieval could not validate this connection (HTTP ${res.status}). Check the key, its ScienceDirect API permissions, and any institutional token.` });
     }
   } catch (e) {
-    checks.push({ name: 'Elsevier API', status: temporaryError(e) ? 'warn' : 'fail', message: `${(e as Error).message}${temporaryError(e) ? ' This is an upstream service error, not evidence of an invalid key.' : ''}` });
+    checks.push({ name: 'Elsevier API', status: temporaryError(e) ? 'warn' : 'fail', message: `${(e as Error).message}${temporaryError(e) ? ' This is an upstream service error, not evidence of an invalid key. If this key works locally, ask your library or Elsevier to check institutional-token or hosted-server API access.' : ''}` });
   }
   try {
     const sub = await elsevierEntitlement(ctx, SUB_TEST_DOI);

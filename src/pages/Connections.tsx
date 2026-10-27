@@ -21,7 +21,7 @@ const INFO: Record<Conn['provider'], { title: string; fields: { key: string; lab
     ],
     about: [
       'ChemBrain retrieves structured full-text XML through the Article Retrieval API after checking entitlement.',
-      'Elsevier grants subscription access by campus IP address or an institutional token. ChemBrain runs in the cloud, so your campus IP access does not carry over. Without a token, only open-access articles are retrievable.',
+      'Elsevier grants subscription access by campus IP address or an institutional token. ChemBrain runs in the cloud, so your campus IP access does not carry over. Even open-access retrieval depends on your key’s API permissions and Elsevier’s access rules.',
     ],
     docs: 'https://dev.elsevier.com/tecdoc_api_authentication.html',
   },

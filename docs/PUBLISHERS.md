@@ -1,6 +1,7 @@
 # Publisher connections
 
 Each researcher adds their own credentials under **Publisher connections**. ChemBrain never substitutes a shared key for a user's entitlement. Each card has a live **Test connection** that makes a handful of real requests and reports pass, warn, fail, or skipped with a plain-language reason.
+At least one check must pass for the overall connection to be verified; an upstream outage with only warnings is not a successful verification.
 
 **Test connection saves your edits first.** Blank credential fields keep their saved values, so replacing an institutional token or one Springer API key does not erase the other keys. Use **Remove** to delete the entire connection. Saving credentials or settings clears the previous test result.
 
@@ -14,10 +15,11 @@ The AI-processing checkbox on each card is separate from access. Tick it only if
   - `GET https://api.elsevier.com/content/article/entitlement/?doi={url-encoded DOI}` (XML `entitled`, including `open_access`)
   - then `GET https://api.elsevier.com/content/article/doi/{doi}?view=FULL` (`Accept: text/xml`)
   - Headers: `X-ELS-APIKey`, optionally `X-ELS-Insttoken`.
-- **Entitlement:** the API key only identifies the application. Subscription entitlement comes from campus IP or the institutional token. ChemBrain runs in the cloud, so **without a token only open-access articles are retrievable**. Subscription papers then show *Institutional connection required*.
+- **Entitlement:** the API key only identifies the application. Subscription entitlement comes from campus IP or the institutional token. ChemBrain runs in the cloud, so campus access does not carry over. Even open-access articles require verified API entitlement and applicable access rights, as explained in [Elsevier's access documentation](https://dev.elsevier.com/tecdoc_article_access.html). An open-access licence alone does not guarantee API retrieval.
 - **Abstract-only detection:** a response without `originalText` / `ce:sections` is recorded as *Abstract only*.
 - **Limits:** Article Retrieval 10 req/s, 50,000/week. Entitlement 6 req/s. ChemBrain paces at about 6 req/s, and `QUOTA_EXCEEDED` (429) is reported explicitly.
 - **Entitlement-service failures:** a temporary 5xx from the preflight does not establish that the key is invalid. ChemBrain still tries Article Retrieval, which enforces the publisher's access permissions itself. Negative entitlement responses remain respected.
+- **Hosted-server failures:** if the publisher still returns 5xx after bounded retries, the result is an unverified service error rather than an invalid-key claim. If the key works locally but not from ChemBrain, ask your library or Elsevier to check institutional-token or hosted-server API access. The HTTP status alone cannot establish whether IP entitlement, an upstream outage, or another publisher-side condition caused it.
 - **Connection test:** entitlement for an open-access Heliyon article, with a separate Article Retrieval metadata check if the entitlement check cannot confirm access, then a subscription Electrochimica Acta article. An entitlement outage is a warning. A successful metadata check validates that API connection, not full-text or subscription access. A key must have ScienceDirect/Article Retrieval permissions; a Scopus-only key may not have them.
 
 ## Wiley / Wiley-VCH

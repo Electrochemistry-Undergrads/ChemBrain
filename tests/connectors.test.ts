@@ -87,7 +87,7 @@ describe('Elsevier connector', () => {
     const r = await elsevierRetrieve(ctxWith(f, { elsevier: { apiKey: 'key' } }), paper('10.1016/j.x.2020.1'));
     expect(r.status).toBe('full_text');
     expect(r.entitlement).toBe('unknown');
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
   });
   it('validates the key independently and warns when the entitlement service fails', async () => {
     const { f } = mockFetch((u) => u.pathname.includes('entitlement')
@@ -97,18 +97,6 @@ describe('Elsevier connector', () => {
     expect(checks.find((c) => c.name === 'API key')?.status).toBe('pass');
     expect(checks.find((c) => c.name === 'Entitlement service')?.status).toBe('warn');
     expect(checks.find((c) => c.name === 'Subscription entitlement')?.status).toBe('warn');
-  });
-  it('tries documented query authentication once after a gateway 500 on header authentication', async () => {
-    const { f, calls } = mockFetch((u) => u.searchParams.has('apiKey')
-      ? new Response('<entitlement-response><document-entitlement><entitled>true</entitled></document-entitlement></entitlement-response>')
-      : new Response('', { status: 500, headers: { 'retry-after': '99' } }));
-    expect((await elsevierEntitlement(ctxWith(f, { elsevier: { apiKey: 'key', instToken: 'inst' } }), '10.1016/j.x.2020.1')).entitled).toBe(true);
-    expect(calls).toHaveLength(2);
-    const fallback = new URL(calls[1].url);
-    expect(fallback.hostname).toBe('api.elsevier.com');
-    expect(fallback.searchParams.get('apiKey')).toBe('key');
-    expect(fallback.searchParams.get('insttoken')).toBe('inst');
-    expect(calls[1].headers.has('x-els-apikey')).toBe(false);
   });
   it('accepts Article Retrieval when this key lacks Entitlement API permission', async () => {
     for (const status of [401, 403]) {

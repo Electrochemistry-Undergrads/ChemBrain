@@ -94,6 +94,17 @@ describe('cross-user isolation', () => {
 });
 
 describe('credentials', () => {
+  it('does not mark an all-warning upstream outage as a verified connection', async () => {
+    const upstream = (async () => new Response('', { status: 500, headers: { 'retry-after': '99' } })) as typeof fetch;
+    const a = new Client(env, upstream);
+    await a.signup('outage_creds');
+    await a.call('PUT', '/api/connections/elsevier', { secrets: { apiKey: 'outage-test-key-not-real' } });
+    const result = await a.call('POST', '/api/connections/elsevier/test');
+    expect(result.status).toBe(200);
+    expect(result.data.ok).toBe(false);
+    expect(result.data.checks.every((c: any) => c.status === 'warn')).toBe(true);
+    expect(result.text).not.toContain('outage-test-key-not-real');
+  });
   it('merges partial credential updates, keeps blank saved fields, and clears stale tests', async () => {
     const a = alice();
     await a.signup('partial_creds');

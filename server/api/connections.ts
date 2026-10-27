@@ -111,7 +111,7 @@ export const connectionRoutes: Route[] = [
       let checks = await testConnection(ctx, provider);
       // Defensive: upstream messages must never echo the user's credentials back.
       checks = checks.map((c) => ({ ...c, message: redact(c.message, secrets) }));
-      const result = { ok: checks.every((c) => c.status !== 'fail'), checks, testedAt: nowIso(), live: true };
+      const result = { ok: checks.some((c) => c.status === 'pass') && checks.every((c) => c.status !== 'fail'), checks, testedAt: nowIso(), live: true };
       await env.DB.prepare('UPDATE connections SET last_test_at = ?, last_test_json = ? WHERE owner_id = ? AND provider = ?').bind(result.testedAt, JSON.stringify(result), user.id, provider).run();
       return json(result);
     },
