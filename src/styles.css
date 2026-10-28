@@ -75,8 +75,7 @@ main { padding: 56px 0 64px; min-height: calc(100vh - 172px); }
 @supports (-webkit-text-stroke: 1px black) { .outline-type { color: transparent; -webkit-text-stroke: 1.1px var(--ink); } }
 .card { display: flex; flex-direction: column; gap: 16px; min-width: 0; background: var(--card); border: 1px solid var(--line); padding: 28px; }
 .card-title { font-size: 22px; font-weight: 400; letter-spacing: -.5px; }
-.new-project { width: min(760px, 100%); align-self: center; position: relative; padding: 24px 26px 20px; border-radius: 12px; border-color: #c9d1dc; }
-.new-project:focus-within { border-color: var(--accent); }
+.new-project { width: 100%; position: relative; padding: 24px 26px 20px; border-radius: 14px; }
 .new-project textarea { min-height: 100px; border: 0; background: transparent; padding: 0; font-size: 18px; line-height: 1.55; resize: vertical; }
 .new-project textarea:focus { outline: none; box-shadow: none; }
 .search-actions { border-top: 1px solid #e9edf2; padding-top: 16px; }
@@ -142,6 +141,7 @@ label.check.inline { align-items: center; font-size: 13px; }
 .short-text p { margin: 0; line-height: 1.7; white-space: pre-wrap; }
 .short-text .link { margin-top: 8px; }
 .describe { max-width: 800px; }
+.glow-field-start .describe { max-width: none; }
 .searched { margin-top: 8px; }
 .searched summary { cursor: pointer; }
 .searched p { margin-top: 12px; }
@@ -249,6 +249,54 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-directio
 .card .spinner { padding: 0 6px 0 0; vertical-align: middle; }
 .card .spinner span { display: inline-block; width: 14px; height: 14px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Glowing compound box: a thin gradient edge that drifts around the card, over a soft halo that
+   breathes. Only transform, opacity and one thin ring repaint are animated. */
+@property --glow-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+.glow-field {
+  --glow-halo: linear-gradient(115deg, #60a5fa, #67e8f9 32%, #a78bfa 64%, #f0abfc);
+  position: relative; z-index: 20; width: min(760px, 100%); align-self: center; border-radius: 14px;
+}
+.glow-field-start { width: min(800px, 100%); align-self: flex-start; }
+.glow-field::before {
+  content: ''; position: absolute; inset: 10px 18px -6px; z-index: 0; border-radius: inherit; pointer-events: none;
+  background: var(--glow-halo); filter: blur(26px); opacity: .3; transform: translateZ(0) scale(.97);
+  transition: opacity .6s cubic-bezier(.2, .8, .2, 1), inset .6s cubic-bezier(.2, .8, .2, 1);
+  animation: glow-in 1.2s cubic-bezier(.2, .8, .2, 1) backwards, glow-breathe 7s ease-in-out infinite;
+}
+.glow-field > .card {
+  position: relative; z-index: 1; border-radius: 14px; border-color: transparent;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 10px 30px -18px rgba(16, 24, 40, .25);
+}
+/* The gradient is built here, where --glow-angle animates; the 0deg fallback keeps a still edge
+   in browsers without @property. */
+.glow-field > .card::before {
+  content: ''; position: absolute; inset: -1px; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: conic-gradient(from var(--glow-angle, 0deg), #2563eb, #0891b2, #7c3aed, #c026d3, #2563eb); opacity: .55;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  transition: opacity .5s cubic-bezier(.2, .8, .2, 1), padding .3s ease;
+  animation: glow-in 1.2s cubic-bezier(.2, .8, .2, 1) backwards, glow-spin 10s linear infinite;
+}
+.glow-field:hover > .card::before { opacity: .75; }
+.glow-field:hover::before { opacity: .38; }
+.glow-field:focus-within > .card::before { opacity: 1; padding: 1.5px; }
+.glow-field:focus-within::before { opacity: .55; inset: 4px 10px -10px; }
+/* While searching, add a pulse rather than speeding up the breathe: changing a running
+   animation's duration makes it jump. */
+.glow-field[data-busy]::before {
+  opacity: .55;
+  animation: glow-in 1.2s cubic-bezier(.2, .8, .2, 1) backwards, glow-breathe 7s ease-in-out infinite, glow-pulse 1.2s ease-in-out infinite alternate;
+}
+.glow-field[data-busy] > .card::before { opacity: 1; }
+@keyframes glow-spin { to { --glow-angle: 360deg; } }
+@keyframes glow-pulse { from { opacity: .4; } to { opacity: .7; } }
+@keyframes glow-breathe { 0%, 100% { transform: translateZ(0) scale(.97); } 50% { transform: translateZ(0) scale(1.01) translateY(3px); } }
+@keyframes glow-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .glow-field::before, .glow-field[data-busy]::before, .glow-field > .card::before { animation: none; transition-duration: .01s; }
+  .glow-field > .card::before { --glow-angle: 135deg; }
+}
 @media (prefers-reduced-motion: reduce) { .spinner span { animation-duration: 3s; } }
 @media (max-width: 1000px) {
   .shell { width: calc(100% - 56px); }

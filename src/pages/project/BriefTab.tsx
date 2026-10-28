@@ -30,6 +30,7 @@ export function BriefTab({ data, reload }: { data: ProjectData; reload: () => vo
   };
 
   return (
+    <div className="glow-field glow-field-start" data-busy={stage !== null || undefined}>
     <div className="card form describe">
       <label htmlFor="describe-p" className="card-title">
         Your idea
@@ -54,6 +55,7 @@ export function BriefTab({ data, reload }: { data: ProjectData; reload: () => vo
         )}
       </div>
       {plan?.queries?.length > 0 && <SearchedFor plan={plan} />}
+    </div>
     </div>
   );
 }
