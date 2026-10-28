@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { Badge, Notice, Spinner } from '../components/ui';
 import { runSearch, STAGE_TEXT, type SearchStage } from '../lib/search';
 import { MaterialInput } from '../components/MaterialInput';
+import { GlowField } from '../components/GlowField';
 
 interface ProjectRow {
   id: string;
@@ -75,7 +76,7 @@ export function Dashboard() {
         <p className="muted">Find papers. Explore ways to make it.</p>
       </div>
       {error && <Notice tone="bad">{error}</Notice>}
-      <div className="glow-field" data-busy={busy || undefined}>
+      <GlowField busy={busy}>
         <form className="card new-project" onSubmit={search}>
           <label htmlFor="describe" className="sr-only">
             Your idea
@@ -99,7 +100,7 @@ export function Dashboard() {
             )}
           </div>
         </form>
-      </div>
+      </GlowField>
       <div className="project-heading"><h2 className="section-title">Your projects</h2><span className="small muted">{projects ? String(projects.length).padStart(2, '0') : '—'}</span></div>
       {!projects ? (
         <Spinner />

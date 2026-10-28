@@ -282,20 +282,34 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-directio
 .glow-field:hover::before { opacity: .38; }
 .glow-field:focus-within > .card::before { opacity: 1; padding: 1.5px; }
 .glow-field:focus-within::before { opacity: .55; inset: 4px 10px -10px; }
-/* While searching, add a pulse rather than speeding up the breathe: changing a running
-   animation's duration makes it jump. */
-.glow-field[data-busy]::before {
-  opacity: .55;
-  animation: glow-in 1.2s cubic-bezier(.2, .8, .2, 1) backwards, glow-breathe 7s ease-in-out infinite, glow-pulse 1.2s ease-in-out infinite alternate;
-}
+/* While searching the halo brightens through its normal opacity transition. No opacity
+   animation here: an animation overrides the transition, so the halo would pop when it ends. */
+.glow-field[data-busy]::before { opacity: .55; }
 .glow-field[data-busy] > .card::before { opacity: 1; }
+/* Cursor light (set by GlowField): a spot on the edge under the pointer, and a halo that gathers
+   toward it. --glow-near is 0 far away and 1 on the box, so both fade with distance. */
+.glow-field::after {
+  /* Extends only vertically: a horizontal overhang would add sideways scrolling on narrow
+     windows. The blur still softens the light past the left and right edges. */
+  content: ''; position: absolute; inset: -60px 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(240px circle at var(--mx, -999px) calc(var(--my, -999px) + 60px), rgba(124, 58, 237, .32), rgba(37, 99, 235, .22) 45%, transparent 72%);
+  filter: blur(18px); opacity: var(--glow-near, 0); transition: opacity .35s ease;
+}
+.glow-field > .card::after {
+  content: ''; position: absolute; inset: -1px; z-index: 1; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: radial-gradient(170px circle at var(--mx, -999px) var(--my, -999px), #7c3aed, #2563eb 40%, transparent 75%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: var(--glow-near, 0); transition: opacity .35s ease;
+}
+@media (hover: none), (pointer: coarse) { .glow-field::after, .glow-field > .card::after { display: none; } }
 @keyframes glow-spin { to { --glow-angle: 360deg; } }
-@keyframes glow-pulse { from { opacity: .4; } to { opacity: .7; } }
 @keyframes glow-breathe { 0%, 100% { transform: translateZ(0) scale(.97); } 50% { transform: translateZ(0) scale(1.01) translateY(3px); } }
 @keyframes glow-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .glow-field::before, .glow-field[data-busy]::before, .glow-field > .card::before { animation: none; transition-duration: .01s; }
+  .glow-field::before, .glow-field > .card::before { animation: none; transition-duration: .01s; }
   .glow-field > .card::before { --glow-angle: 135deg; }
+  .glow-field::after, .glow-field > .card::after { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .spinner span { animation-duration: 3s; } }
 @media (max-width: 1000px) {

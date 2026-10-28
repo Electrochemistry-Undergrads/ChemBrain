@@ -5,6 +5,7 @@ import { runSearch, STAGE_TEXT, type SearchStage } from '../../lib/search';
 import { Notice, Spinner } from '../../components/ui';
 import type { ProjectData } from '../Project';
 import { MaterialInput } from '../../components/MaterialInput';
+import { GlowField } from '../../components/GlowField';
 
 export function BriefTab({ data, reload }: { data: ProjectData; reload: () => void }) {
   const id = data.project.id;
@@ -30,7 +31,7 @@ export function BriefTab({ data, reload }: { data: ProjectData; reload: () => vo
   };
 
   return (
-    <div className="glow-field glow-field-start" data-busy={stage !== null || undefined}>
+    <GlowField className="glow-field-start" busy={stage !== null}>
     <div className="card form describe">
       <label htmlFor="describe-p" className="card-title">
         Your idea
@@ -56,7 +57,7 @@ export function BriefTab({ data, reload }: { data: ProjectData; reload: () => vo
       </div>
       {plan?.queries?.length > 0 && <SearchedFor plan={plan} />}
     </div>
-    </div>
+    </GlowField>
   );
 }
 
