@@ -224,6 +224,10 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-directio
 .approach ol { margin: 0; padding-left: 18px; }
 .rank { display: inline-block; color: var(--accent); font-family: var(--mono); font-size: 12px; letter-spacing: 0; }
 .synthesis-method { align-self: flex-start; margin: 0; border-left: 2px solid var(--accent); padding-left: 12px; font-size: 15px; }
+.synthesis-method > p { margin: 0; }
+.method-paper-links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.method-paper-links a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+.method-paper-links a:hover { color: var(--accent); }
 .approach-equipment { border-bottom: 1px solid var(--line); padding-bottom: 18px; }
 .cite { padding: 2px 5px; border: 1px solid #bccce5; background: var(--info-bg); color: var(--info); cursor: pointer; font: 500 10px/1.3 var(--mono); vertical-align: 1px; margin: 0 2px; }
 .cite:hover { border-color: var(--accent); background: #dce7fb; }

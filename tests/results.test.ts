@@ -9,8 +9,38 @@ import { InstrumentResults } from '../src/components/InstrumentResults';
 import { Proposal, jsonSchemaOf } from '../server/meta/schemas';
 import { toMarkdown } from '../server/api/reports';
 import { resultsFixture } from './results-fixture';
+import { methodPapers, paperHref, paperJournal, type ReportPaper } from '../shared/papers';
+import { MethodPaperLinks } from '../src/components/MethodPaperLinks';
 
 describe('synthesis emphasis and equipment filters', () => {
+  it('links the journal of the method source rather than unrelated papers in the same approach', () => {
+    const papers: Record<string, ReportPaper> = {
+      P1: { id: 'p1', title: 'Fixture method paper', doi: '10.5555/fixture(a)', year: 2026, venue: 'ACS Applied Materials & Interfaces', publisher: 'American Chemical Society' },
+      P2: { id: 'p2', title: 'Fixture testing paper', doi: '10.5555/other', year: 2026, venue: 'Nature' },
+    };
+    const approach = { papers: ['P1', 'P2', 'P1'], synthesis_method: { evidence: ['E1'] } };
+    const sources = methodPapers(approach, papers, { E1: 'e1' }, new Map([['e1', { paper_id: 'p1' }]]));
+    expect(sources.map((p) => p.id)).toEqual(['p1']);
+    const html = renderToStaticMarkup(createElement(MethodPaperLinks, { papers: sources }));
+    expect(html).toContain('ACS Applied Materials &amp; Interfaces');
+    expect(html).toContain('href="https://doi.org/10.5555%2Ffixture%28a%29"');
+    expect(html).toContain('target="_blank"');
+    expect(html).not.toContain('Nature');
+    expect(methodPapers({ papers: ['P1'] }, papers, {}, new Map())).toEqual([papers.P1]);
+    expect(methodPapers(approach, papers, {}, new Map())).toEqual([]);
+  });
+
+  it('uses known publisher labels or neutral fallbacks and refuses non-web source links', () => {
+    const paper: ReportPaper = { id: 'p', title: 'Fixture', doi: null, year: null, publisher: 'American Chemical Society', landingUrl: 'https://example.org/paper' };
+    expect(paperJournal(paper)).toBe('ACS');
+    expect(paperHref(paper)).toBe('https://example.org/paper');
+    expect(paperJournal({ ...paper, publisher: null })).toBe('Paper');
+    for (const landingUrl of ['javascript:alert(1)', 'file:///private/paper.pdf', 'https://user:password@example.org/paper']) {
+      expect(paperHref({ ...paper, landingUrl })).toBeNull();
+      expect(renderToStaticMarkup(createElement(MethodPaperLinks, { papers: [{ ...paper, landingUrl }] }))).not.toContain('<a ');
+    }
+  });
+
   it('recognizes acronyms and full names without matching unrelated words', () => {
     expect(new Set(INSTRUMENTS.map((i) => i.id)).size).toBe(INSTRUMENTS.length);
     expect(instrumentsIn('SEM').map((i) => i.id)).toEqual(['sem']);

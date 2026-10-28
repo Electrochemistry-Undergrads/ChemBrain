@@ -11,6 +11,7 @@ import { validateProposal } from '../evidence/citations';
 import { checkPublications } from '../research/publications';
 import { publicationMessage, type PublicationCheck } from '../../shared/publications';
 import { ApiError } from '../http/respond';
+import type { ReportPaper } from '../../shared/papers';
 import { newId, nowIso, parseJson } from '../util';
 
 export interface ChunkRow {
@@ -185,7 +186,7 @@ export async function checkPaper(env: Env, ctx: UsageContext, paperId: string, f
 
 export interface ReportJson {
   proposal: Proposal;
-  papers: Record<string, { id: string; title: string; doi: string | null; year: number | null }>;
+  papers: Record<string, ReportPaper>;
   evidence: Record<string, string>;
   validation: { removedReferences: number; unsupportedStatements: string[]; evidenceUsed: number; papersUsed: number };
   model: string;
@@ -197,12 +198,12 @@ export interface ReportJson {
 /** Stage 4: cross-paper comparison and proposal from checked evidence only. */
 export async function compareAndPropose(env: Env, ctx: UsageContext, brief: unknown, fetchImpl: typeof fetch = fetch): Promise<ReportJson | null> {
   const { results: sourcePapers } = await env.DB.prepare(
-    `SELECT DISTINCT p.id, p.title, p.doi, p.year FROM papers p JOIN evidence e ON e.paper_id = p.id
+    `SELECT DISTINCT p.id, p.title, p.doi, p.year, p.venue, p.publisher, p.landing_url FROM papers p JOIN evidence e ON e.paper_id = p.id
      WHERE p.owner_id = ? AND p.project_id = ? AND p.selected = 1
        AND p.ai_permission IN ('open_license', 'user_attested') ORDER BY p.created_at`,
   )
     .bind(ctx.ownerId, ctx.projectId!)
-    .all<{ id: string; title: string; doi: string | null; year: number | null }>();
+    .all<ReportPaper & { landing_url: string | null }>();
   const { results: sourceEvidence } = await env.DB.prepare(
     `SELECT id, paper_id, category, subject, role, value_text, unit, conditions, quote, quote_match, check_status FROM evidence
      WHERE owner_id = ? AND project_id = ? AND quote_match != 'not_found' AND check_status IN ('supported', 'partially_supported')
@@ -246,7 +247,7 @@ export async function compareAndPropose(env: Env, ctx: UsageContext, brief: unkn
   const { used, removedReferences, unsupportedStatements } = validateProposal(p, evRef, new Map([...paperRef].map(([id, ref]) => [ref, id])));
   const report: ReportJson = {
     proposal: p,
-    papers: Object.fromEntries(papers.map((x) => [paperRef.get(x.id)!, { id: x.id, title: x.title, doi: x.doi, year: x.year }])),
+    papers: Object.fromEntries(papers.map((x) => [paperRef.get(x.id)!, { id: x.id, title: x.title, doi: x.doi, year: x.year, venue: x.venue, publisher: x.publisher, landingUrl: x.landing_url }])),
     evidence: Object.fromEntries([...used].map((r) => [r, evRef.get(r)!.id])),
     validation: { removedReferences, unsupportedStatements, evidenceUsed: used.size, papersUsed: papers.length },
     model: res.model,

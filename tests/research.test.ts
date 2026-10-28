@@ -146,7 +146,7 @@ async function seed(label: string, fetchImpl: typeof fetch) {
     const id = `${label}-${suffix}`;
     const quote = `The test oxide ${suffix} was prepared using a synthetic test method at 100 degrees.`;
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO papers (id, project_id, owner_id, doi, title, discovered_via, selected, ai_permission, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'fixture', 1, 'open_license', '2026-10-28', '2026-10-28')").bind(id, pid, owner, `10.5555/${id}`, `Test oxide ${suffix}`),
+      env.DB.prepare("INSERT INTO papers (id, project_id, owner_id, doi, title, venue, publisher, landing_url, discovered_via, selected, ai_permission, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'Fixture Journal', 'Fixture Publisher', 'https://example.org/paper', 'fixture', 1, 'open_license', '2026-10-28', '2026-10-28')").bind(id, pid, owner, `10.5555/${id}`, `Test oxide ${suffix}`),
       env.DB.prepare("INSERT INTO documents (id, paper_id, project_id, owner_id, connector, format, content_sha256, completeness, identity_json, char_count, section_count, retrieved_at) VALUES (?, ?, ?, ?, 'fixture', 'jats', 'fixture', 'complete', '{}', 100, 1, '2026-10-28')").bind(`doc-${id}`, id, pid, owner),
       env.DB.prepare("INSERT INTO chunks (id, document_id, paper_id, project_id, owner_id, seq, kind, text) VALUES (?, ?, ?, ?, ?, 1, 'text', ?)").bind(`chunk-${id}`, `doc-${id}`, id, pid, owner, quote),
       env.DB.prepare("INSERT INTO evidence (id, project_id, paper_id, document_id, chunk_id, owner_id, category, subject, quote, quote_match, check_status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'method_step', 'test oxide', ?, 'exact', 'supported', '2026-10-28')").bind(`ev-${id}`, pid, id, `doc-${id}`, `chunk-${id}`, owner, quote),
@@ -178,14 +178,23 @@ describe('research pipeline publication checks', () => {
     const { client, pid, owner } = await seed('research_mixed', upstream);
     const report = (await compareAndPropose(env, { ownerId: owner, projectId: pid, stage: 'comparison' }, { description: 'Compare test oxide methods.' }, upstream))!;
     expect(Object.values(report.papers).map((p) => p.title)).toEqual(['Test oxide b']);
+    expect(report.papers.P1.venue).toBe('Fixture Journal');
     expect(proposalPrompt).not.toContain('Test oxide a');
     expect(proposalPrompt).toContain('publication update');
     expect(report.publicationChecks?.find((c) => c.title === 'Test oxide a')?.exclusion).toBe('retracted');
-    await env.DB.prepare("INSERT INTO reports (id, project_id, owner_id, model, report_json, created_at) VALUES ('mixed-report', ?, ?, 'test', ?, '2026-10-28')").bind(pid, owner, JSON.stringify(report)).run();
+    const legacy = structuredClone(report);
+    for (const p of Object.values(legacy.papers)) { delete p.venue; delete p.publisher; delete p.landingUrl; }
+    await env.DB.prepare("INSERT INTO reports (id, project_id, owner_id, model, report_json, created_at) VALUES ('mixed-report', ?, ?, 'test', ?, '2026-10-28')").bind(pid, owner, JSON.stringify(legacy)).run();
+    const saved = (await client.call('GET', `/api/projects/${pid}/report`)).data.report.report;
+    expect(saved.papers.P1.venue).toBe('Fixture Journal');
+    expect(saved.papers.P1.publisher).toBe('Fixture Publisher');
+    expect(saved.papers.P1.landingUrl).toBe('https://example.org/paper');
+    expect(saved.proposal).toEqual(report.proposal);
     const md = (await client.call('GET', `/api/projects/${pid}/export.md`)).text;
     expect(md).toContain('Retracted paper excluded');
     expect(md).toContain('[Correction](https://doi.org/10.5555%2Fnotice)');
     expect(md).toContain('Test assessment. [^e1]');
+    expect(md).toContain('[Fixture Journal](https://doi.org/10.5555%2Fresearch_mixed-b)');
     const answer = await client.call('POST', `/api/projects/${pid}/questions`, { question: 'Compare preparation of the test oxide.' });
     expect(answer.data.answer.insufficient_evidence).toBe(false);
     expect(questionPrompt).not.toContain('oxide a');

@@ -7,6 +7,7 @@ import type { Route } from './router';
 import type { Env } from '../env';
 import { synthesisMarkdown } from '../../shared/synthesis';
 import { NOTICE_LABEL, publicationDoiUrl, publicationMessage } from '../../shared/publications';
+import { methodPapers, paperHref, paperJournal } from '../../shared/papers';
 
 interface EvidenceOut {
   id: string;
@@ -48,7 +49,21 @@ async function latestReport(env: Env, ownerId: string, projectId: string) {
   const r = await env.DB.prepare('SELECT id, model, report_json, created_at FROM reports WHERE project_id = ? AND owner_id = ? ORDER BY created_at DESC LIMIT 1')
     .bind(projectId, ownerId)
     .first<{ id: string; model: string; report_json: string; created_at: string }>();
-  return r ? { id: r.id, model: r.model, createdAt: r.created_at, report: parseJson<ReportJson | null>(r.report_json, null) } : null;
+  if (!r) return null;
+  const report = parseJson<ReportJson | null>(r.report_json, null);
+  if (report?.papers && Object.values(report.papers).some((p) => !p.venue || !p.publisher || !p.landingUrl)) {
+    // Add bibliographic labels to older reports without regenerating their analysis.
+    const { results } = await env.DB.prepare('SELECT id, venue, publisher, landing_url FROM papers WHERE project_id = ? AND owner_id = ?')
+      .bind(projectId, ownerId).all<{ id: string; venue: string | null; publisher: string | null; landing_url: string | null }>();
+    const metadata = new Map(results.map((p) => [p.id, p]));
+    for (const paper of Object.values(report.papers)) {
+      const current = metadata.get(paper.id);
+      paper.venue ??= current?.venue ?? null;
+      paper.publisher ??= current?.publisher ?? null;
+      paper.landingUrl ??= current?.landing_url ?? null;
+    }
+  }
+  return { id: r.id, model: r.model, createdAt: r.created_at, report };
 }
 
 async function papersFor(env: Env, ownerId: string, projectId: string) {
@@ -187,6 +202,12 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
     for (const a of [...p.approaches].sort((x, y) => x.rank - y.rank)) {
       L.push(`### ${a.rank}. ${format(a.name)} (${a.evidence_strength} evidence) ${a.papers.map((x) => cite(r.papers, x)).join(' ')}`, '', `${format(a.summary)} ${evCite(a.summary_evidence ?? [])}`.trim(), '');
       if (a.synthesis_method) L.push(`Synthesis method: **${a.synthesis_method.name}** ${evCite(a.synthesis_method.evidence)}`, '');
+      const sources = methodPapers(a, r.papers, r.evidence, evById).map((paper) => {
+        const href = paperHref(paper);
+        const journal = paperJournal(paper).replace(/[\[\]\\\r\n]/g, ' ');
+        return href ? `[${journal}](${href.replace(/[()]/g, (c) => c === '(' ? '%28' : '%29')})` : journal;
+      });
+      if (sources.length) L.push(sources.join(' · '), '');
       if (a.equipment?.length) L.push('**Equipment reported**', '', ...a.equipment.map((i) => `- ${i.name} (${i.purpose}) ${evCite(i.evidence)}`), '');
       if (a.ingredients.length) L.push('**Ingredients (as published)**', '', ...a.ingredients.map((i) => `- ${i.name}${i.role ? ` — ${i.role}` : ''}${i.amount ? `: ${i.amount}` : ''} ${evCite(i.evidence)}`), '');
       if (a.method.length) L.push('**Method (as published)**', '', ...a.method.map((m, i) => `${i + 1}. ${format(m.step)} ${evCite(m.evidence)}`), '');

@@ -10,6 +10,8 @@ import { proposalMethods, type StoredProposal } from '../../lib/report';
 import { InstrumentResults, instrumentPurpose } from '../../components/InstrumentResults';
 import { PublicationNotes } from '../../components/PublicationNotes';
 import type { PublicationCheck } from '../../../shared/publications';
+import { methodPapers, type ReportPaper } from '../../../shared/papers';
+import { MethodPaperLinks } from '../../components/MethodPaperLinks';
 
 interface Report {
   id: string;
@@ -17,7 +19,7 @@ interface Report {
   createdAt: string;
   report: {
     proposal: StoredProposal;
-    papers: Record<string, { id: string; title: string; doi: string | null; year: number | null }>;
+    papers: Record<string, ReportPaper>;
     evidence: Record<string, string>;
     validation: { removedReferences: number; unsupportedStatements: string[]; evidenceUsed: number; papersUsed: number };
     model: string;
@@ -127,9 +129,12 @@ export function ResultsTab({ data }: { data: ProjectData }) {
         {[...p.approaches].sort((a, b) => a.rank - b.rank).map((a) => (
             <article key={a.rank} id={`approach-${a.rank}`} className="approach">
               <h3>
-                <span className="rank">{a.rank}</span> <span><Text>{a.name}</Text></span>
+                <span className="rank">{a.rank}</span> <strong><Text>{a.name}</Text></strong>
               </h3>
-              {a.synthesis_method && <p className="synthesis-method"><strong>{a.synthesis_method.name}</strong> <Cite refs={a.synthesis_method.evidence} /></p>}
+              <div className={a.synthesis_method ? 'synthesis-method' : 'method-sources'}>
+                {a.synthesis_method && <p><strong>{a.synthesis_method.name}</strong> <Cite refs={a.synthesis_method.evidence} /></p>}
+                <MethodPaperLinks papers={methodPapers(a, r.papers, r.evidence, evidence)} />
+              </div>
               <ShortText text={a.summary} names={methods} limit={220} citations={<Cite refs={a.summary_evidence ?? []} />} />
               <details className="approach-details"><summary>Ingredients, steps & details</summary><div className="stack">
               <div className="row"><P refs={a.papers} /><Badge tone={a.evidence_strength === 'strong' ? 'good' : a.evidence_strength === 'moderate' ? 'info' : 'warn'}>{a.evidence_strength} support</Badge></div>
