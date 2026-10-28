@@ -6,6 +6,7 @@ import { coverage, ownedProject } from './access';
 import type { Route } from './router';
 import type { Env } from '../env';
 import { synthesisMarkdown } from '../../shared/synthesis';
+import { NOTICE_LABEL, publicationDoiUrl, publicationMessage } from '../../shared/publications';
 
 interface EvidenceOut {
   id: string;
@@ -155,7 +156,8 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
   const r = d.report?.report;
   const evById = new Map(d.evidence.map((e) => [e.id, e]));
   const refToEv = r?.evidence ?? {};
-  const evNum = new Map<string, number>();
+  // Match the saved report and website numbering, even when a summary cites a later source first.
+  const evNum = new Map<string, number>(Object.values(refToEv).map((id, i) => [id, i + 1]));
   const evCite = (refs: string[]) =>
     refs
       .map((ref) => refToEv[ref])
@@ -180,10 +182,10 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
     const p = r.proposal;
     const methods = [...p.approaches.flatMap((a) => a.synthesis_method ? [a.synthesis_method.name] : []), ...p.method_comparison.map((m) => m.method)];
     const format = (s: string) => synthesisMarkdown(s, methods);
-    L.push('## Assessment', '', format(p.assessment), '');
+    L.push('## Assessment', '', `${format(p.assessment)} ${evCite(p.assessment_evidence ?? [])}`.trim(), '');
     L.push('## Ranked approaches', '');
     for (const a of [...p.approaches].sort((x, y) => x.rank - y.rank)) {
-      L.push(`### ${a.rank}. ${format(a.name)} (${a.evidence_strength} evidence) ${a.papers.map((x) => cite(r.papers, x)).join(' ')}`, '', format(a.summary), '');
+      L.push(`### ${a.rank}. ${format(a.name)} (${a.evidence_strength} evidence) ${a.papers.map((x) => cite(r.papers, x)).join(' ')}`, '', `${format(a.summary)} ${evCite(a.summary_evidence ?? [])}`.trim(), '');
       if (a.synthesis_method) L.push(`Synthesis method: **${a.synthesis_method.name}** ${evCite(a.synthesis_method.evidence)}`, '');
       if (a.equipment?.length) L.push('**Equipment reported**', '', ...a.equipment.map((i) => `- ${i.name} (${i.purpose}) ${evCite(i.evidence)}`), '');
       if (a.ingredients.length) L.push('**Ingredients (as published)**', '', ...a.ingredients.map((i) => `- ${i.name}${i.role ? ` — ${i.role}` : ''}${i.amount ? `: ${i.amount}` : ''} ${evCite(i.evidence)}`), '');
@@ -218,6 +220,15 @@ export function toMarkdown(d: Awaited<ReturnType<typeof exportData>>) {
       for (const x of p.next_experiments) L.push(`### ${format(x.title)}`, '', format(x.rationale), '', `**Design:** ${format(x.design)}`, '', `**Measure:** ${x.measurements.join('; ')} ${evCite(x.basis)}`, '');
     }
     if (p.not_established.length) L.push('## What the sources do not establish', '', ...p.not_established.map((x) => `- ${format(x)}`), '');
+    const updates = r.publicationChecks?.filter((c) => publicationMessage(c)) ?? [];
+    if (updates.length) {
+      L.push('## Source updates', '');
+      for (const c of updates) {
+        L.push(`- **${c.title.replace(/[\r\n]/g, ' ')}:** ${publicationMessage(c)}`);
+        for (const n of c.notices) L.push(`  - ${n.doi ? `[${NOTICE_LABEL[n.kind]}](${publicationDoiUrl(n.doi)})` : NOTICE_LABEL[n.kind]}${n.date ? ` (${n.date})` : ''}`);
+      }
+      L.push('', 'Crossref update records may be incomplete.', '');
+    }
     if (r.validation.removedReferences || r.validation.unsupportedStatements.length) {
       L.push('## Citation validation', '', `${r.validation.removedReferences} model citations referred to unknown evidence and were removed.`, ...r.validation.unsupportedStatements.map((s) => `- Uncited statement removed or flagged: ${s}`), '');
     }

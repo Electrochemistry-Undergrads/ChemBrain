@@ -17,6 +17,7 @@ export function fakeMeta(opts: { failFirst?: number } = {}) {
   const calls: string[] = [];
   const impl = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url.startsWith('https://api.crossref.org/works/')) return Response.json({ message: { DOI: decodeURIComponent(new URL(url).pathname.slice('/works/'.length)), title: ['Test metadata record'], 'updated-by': [] } });
     if (!url.startsWith('https://api.meta.ai/v1/chat/completions')) return new Response('unexpected', { status: 599 });
     const body = JSON.parse(String(init!.body));
     const name = body.response_format.json_schema.name as string;
@@ -51,7 +52,8 @@ export function fakeMeta(opts: { failFirst?: number } = {}) {
       return sse(
         JSON.stringify({
           assessment: 'Test assessment.',
-          approaches: [{ rank: 1, name: 'Approach A', summary: 's', papers: [e1.p, 'P99'], synthesis_method: { name: 'Uncited test route', evidence: ['E9999'] }, equipment: [{ name: 'Uncited test instrument', purpose: 'synthesis', evidence: ['E9999'] }], ingredients: [{ name: 'starch', role: 'matrix', amount: null, evidence: [e1.e, 'E9999'] }], method: [{ step: 'cast', evidence: [] }], performance: [{ property: 'WVP', value: '1', test_conditions: null, evidence: ['E9999'] }], fit_to_brief: 'ok', risks: [], evidence_strength: 'moderate' }],
+          assessment_evidence: [e1.e],
+          approaches: [{ rank: 1, name: 'Approach A', summary: 's', summary_evidence: [e1.e], papers: [e1.p, 'P99'], synthesis_method: { name: 'Uncited test route', evidence: ['E9999'] }, equipment: [{ name: 'Uncited test instrument', purpose: 'synthesis', evidence: ['E9999'] }], ingredients: [{ name: 'starch', role: 'matrix', amount: null, evidence: [e1.e, 'E9999'] }], method: [{ step: 'cast', evidence: [] }], performance: [{ property: 'WVP', value: '1', test_conditions: null, evidence: ['E9999'] }], fit_to_brief: 'ok', risks: [], evidence_strength: 'moderate' }],
           ingredient_comparison: [],
           method_comparison: [],
           performance_comparison: [],

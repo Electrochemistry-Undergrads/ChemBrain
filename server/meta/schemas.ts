@@ -73,12 +73,14 @@ const refs = z.array(z.string().max(12)).max(20);
 
 export const Proposal = z.strictObject({
   assessment: z.string().max(4000),
+  assessment_evidence: refs,
   approaches: z
     .array(
       z.strictObject({
         rank: z.number().int().min(1).max(10),
         name: z.string().max(200),
         summary: z.string().max(1500),
+        summary_evidence: refs,
         papers: z.array(z.string().max(10)).max(10),
         synthesis_method: z.strictObject({ name: z.string().min(1).max(200), evidence: refs }).nullable(),
         equipment: z.array(z.strictObject({ name: z.string().min(1).max(200), purpose: z.enum(['synthesis', 'characterization', 'unspecified']), evidence: refs })).max(20),

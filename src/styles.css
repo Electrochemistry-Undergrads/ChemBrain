@@ -138,6 +138,9 @@ label.check.inline { align-items: center; font-size: 13px; }
 .compact-details p { margin: 10px 0; }
 .command { display: flex; gap: 8px; align-items: flex-start; }
 .command code { display: block; flex: 1; min-width: 0; padding: 10px 12px; white-space: pre-wrap; word-break: break-all; }
+.publication-notes { border-left: 2px solid var(--warn); padding-left: 14px; }
+.publication-notes > summary { color: var(--warn); }
+.publication-notes > ul > li + li { margin-top: 14px; }
 .download-menu summary { cursor: pointer; font-size: 13px; }
 .download-menu[open] > .row { margin-top: 12px; }
 .short-text p { margin: 0; line-height: 1.7; white-space: pre-wrap; }

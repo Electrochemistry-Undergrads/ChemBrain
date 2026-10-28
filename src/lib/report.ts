@@ -1,10 +1,10 @@
 import type { Proposal } from '../../server/meta/schemas';
 import { instrumentsIn } from '../../shared/instruments';
 
-/** Older saved reports predate the structured synthesis and equipment fields. */
-export type ReportApproach = Omit<Proposal['approaches'][number], 'synthesis_method' | 'equipment'> &
-  Partial<Pick<Proposal['approaches'][number], 'synthesis_method' | 'equipment'>>;
-export type StoredProposal = Omit<Proposal, 'approaches'> & { approaches: ReportApproach[] };
+/** Older saved reports predate structured methods, equipment and summary citations. */
+export type ReportApproach = Omit<Proposal['approaches'][number], 'synthesis_method' | 'equipment' | 'summary_evidence'> &
+  Partial<Pick<Proposal['approaches'][number], 'synthesis_method' | 'equipment' | 'summary_evidence'>>;
+export type StoredProposal = Omit<Proposal, 'approaches' | 'assessment_evidence'> & Partial<Pick<Proposal, 'assessment_evidence'>> & { approaches: ReportApproach[] };
 
 export function proposalMethods(proposal: StoredProposal) {
   return [...proposal.approaches.flatMap((a) => a.synthesis_method ? [a.synthesis_method.name] : []), ...proposal.method_comparison.map((m) => m.method)];

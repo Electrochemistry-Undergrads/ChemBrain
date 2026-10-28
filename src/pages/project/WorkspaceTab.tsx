@@ -5,6 +5,7 @@ import { CATEGORY, CHECK } from '../../lib/labels';
 import { Badge, Details, Notice, Spinner } from '../../components/ui';
 import { EvidenceViewer } from '../../components/EvidenceViewer';
 import { Coverage } from './Coverage';
+import { PublicationNotes } from '../../components/PublicationNotes';
 import type { Paper } from './PapersTab';
 import type { ProjectData } from '../Project';
 
@@ -401,6 +402,7 @@ function Questions({ projectId, disabled, onOpen }: { projectId: string; disable
           <p className="strong">{item.question}</p>
           <p>{item.answer?.answer?.answer}</p>
           {item.answer?.answer?.insufficient_evidence && <Badge tone="warn">The sources do not fully answer this</Badge>}
+          <PublicationNotes checks={item.answer?.publicationChecks} />
           <ul className="plain small">
             {(item.answer?.citations ?? []).map((c: any, i: number) => (
               <li key={i}>

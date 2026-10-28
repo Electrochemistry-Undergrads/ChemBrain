@@ -71,9 +71,11 @@ describe('synthesis emphasis and equipment filters', () => {
     expect(md).toContain('Scanning electron microscope (characterization) [^e2]');
     expect(md).toContain('| **Sol-Gel** |');
     const legacy = structuredClone(data);
+    delete (legacy.report!.report!.proposal as any).assessment_evidence;
     for (const a of legacy.report!.report!.proposal.approaches) {
       delete (a as any).equipment;
       delete (a as any).synthesis_method;
+      delete (a as any).summary_evidence;
     }
     expect(toMarkdown(legacy)).toContain('**Sol-Gel** is the synthesis method');
   });

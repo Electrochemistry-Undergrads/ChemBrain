@@ -8,6 +8,8 @@ import type { ProjectData } from '../Project';
 import { SynthesisText } from '../../components/SynthesisText';
 import { proposalMethods, type StoredProposal } from '../../lib/report';
 import { InstrumentResults, instrumentPurpose } from '../../components/InstrumentResults';
+import { PublicationNotes } from '../../components/PublicationNotes';
+import type { PublicationCheck } from '../../../shared/publications';
 
 interface Report {
   id: string;
@@ -20,6 +22,7 @@ interface Report {
     validation: { removedReferences: number; unsupportedStatements: string[]; evidenceUsed: number; papersUsed: number };
     model: string;
     generatedAt: string;
+    publicationChecks?: PublicationCheck[];
   };
 }
 
@@ -32,12 +35,12 @@ function Section({ title, children, note, collapsed = true }: { title: string; c
   </section>;
 }
 
-function ShortText({ text, names, limit = 300 }: { text: string; names: string[]; limit?: number }) {
+function ShortText({ text, names, limit = 300, citations }: { text: string; names: string[]; limit?: number; citations?: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const long = text.length > limit;
   const end = text.lastIndexOf(' ', limit);
   const shown = long && !expanded ? `${text.slice(0, end > limit / 2 ? end : limit)}…` : text;
-  return <div className="short-text"><p><SynthesisText text={shown} names={names} /></p>{long && <button className="link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Show less' : 'Read more'}</button>}</div>;
+  return <div className="short-text"><p><SynthesisText text={shown} names={names} /> {citations}</p>{long && <button className="link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Show less' : 'Read more'}</button>}</div>;
 }
 
 export function ResultsTab({ data }: { data: ProjectData }) {
@@ -111,22 +114,23 @@ export function ResultsTab({ data }: { data: ProjectData }) {
       </div>
       <p className="hint">AI suggestions, not experimentally validated. Review before lab use.</p>
       {data.project.isDemo && <p className="hint">Example uses bundled open-access papers.</p>}
+      <PublicationNotes checks={r.publicationChecks} />
       {(r.validation.removedReferences > 0 || r.validation.unsupportedStatements.length > 0) && (
         <details className="compact-details"><summary>Some source claims need review</summary><p className="small">{r.validation.removedReferences} invalid references removed. {r.validation.unsupportedStatements.length} claims removed or flagged.</p></details>
       )}
 
       <Section title="Overview" collapsed={false}>
-        <ShortText text={p.assessment} names={methods} />
+        <ShortText text={p.assessment} names={methods} citations={<Cite refs={p.assessment_evidence ?? []} />} />
       </Section>
 
-      <Section title="Suggested approaches" collapsed={false} note="Click a number to see its source.">
+      {p.approaches.length > 0 && <Section title="Suggested approaches" collapsed={false} note="Click a number to see its source.">
         {[...p.approaches].sort((a, b) => a.rank - b.rank).map((a) => (
             <article key={a.rank} id={`approach-${a.rank}`} className="approach">
               <h3>
                 <span className="rank">{a.rank}</span> <span><Text>{a.name}</Text></span>
               </h3>
               {a.synthesis_method && <p className="synthesis-method"><strong>{a.synthesis_method.name}</strong> <Cite refs={a.synthesis_method.evidence} /></p>}
-              <ShortText text={a.summary} names={methods} limit={220} />
+              <ShortText text={a.summary} names={methods} limit={220} citations={<Cite refs={a.summary_evidence ?? []} />} />
               <details className="approach-details"><summary>Ingredients, steps & details</summary><div className="stack">
               <div className="row"><P refs={a.papers} /><Badge tone={a.evidence_strength === 'strong' ? 'good' : a.evidence_strength === 'moderate' ? 'info' : 'warn'}>{a.evidence_strength} support</Badge></div>
               <div className="approach-equipment">
@@ -180,9 +184,9 @@ export function ResultsTab({ data }: { data: ProjectData }) {
               </div></details>
             </article>
           ))}
-      </Section>
+      </Section>}
 
-      <InstrumentResults approaches={p.approaches} citations={(refs) => <Cite refs={refs} />} />
+      {p.approaches.length > 0 && <InstrumentResults approaches={p.approaches} citations={(refs) => <Cite refs={refs} />} />}
 
       {p.ingredient_comparison.length > 0 && (
         <Section title="Ingredient comparison">

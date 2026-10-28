@@ -7,6 +7,10 @@ import {
 } from '../meta/prompts';
 import { matchQuote, valueInQuote } from '../evidence/verify';
 import { normalizeUnit } from '../evidence/units';
+import { validateProposal } from '../evidence/citations';
+import { checkPublications } from '../research/publications';
+import { publicationMessage, type PublicationCheck } from '../../shared/publications';
+import { ApiError } from '../http/respond';
 import { newId, nowIso, parseJson } from '../util';
 
 export interface ChunkRow {
@@ -186,119 +190,119 @@ export interface ReportJson {
   validation: { removedReferences: number; unsupportedStatements: string[]; evidenceUsed: number; papersUsed: number };
   model: string;
   generatedAt: string;
+  /** Optional so reports saved before publication checks remain readable. */
+  publicationChecks?: PublicationCheck[];
 }
 
 /** Stage 4: cross-paper comparison and proposal from checked evidence only. */
 export async function compareAndPropose(env: Env, ctx: UsageContext, brief: unknown, fetchImpl: typeof fetch = fetch): Promise<ReportJson | null> {
-  const { results: papers } = await env.DB.prepare(
+  const { results: sourcePapers } = await env.DB.prepare(
     `SELECT DISTINCT p.id, p.title, p.doi, p.year FROM papers p JOIN evidence e ON e.paper_id = p.id
-     WHERE p.owner_id = ? AND p.project_id = ? ORDER BY p.created_at`,
+     WHERE p.owner_id = ? AND p.project_id = ? AND p.selected = 1
+       AND p.ai_permission IN ('open_license', 'user_attested') ORDER BY p.created_at`,
   )
     .bind(ctx.ownerId, ctx.projectId!)
     .all<{ id: string; title: string; doi: string | null; year: number | null }>();
-  const { results: ev } = await env.DB.prepare(
+  const { results: sourceEvidence } = await env.DB.prepare(
     `SELECT id, paper_id, category, subject, role, value_text, unit, conditions, quote, quote_match, check_status FROM evidence
      WHERE owner_id = ? AND project_id = ? AND quote_match != 'not_found' AND check_status IN ('supported', 'partially_supported')
+       AND paper_id IN (SELECT id FROM papers WHERE owner_id = ? AND project_id = ? AND selected = 1 AND ai_permission IN ('open_license', 'user_attested'))
      ORDER BY paper_id, created_at LIMIT 450`,
   )
-    .bind(ctx.ownerId, ctx.projectId!)
+    .bind(ctx.ownerId, ctx.projectId!, ctx.ownerId, ctx.projectId!)
     .all<EvidenceRow>();
+  if (!sourceEvidence.length) return null;
+  const sourceIds = new Set(sourceEvidence.map((e) => e.paper_id));
+  const publicationChecks = await checkPublications(env, sourcePapers.filter((p) => sourceIds.has(p.id)), fetchImpl);
+  const excluded = new Set(publicationChecks.filter((p) => p.exclusion).map((p) => p.paperId));
+  const papers = sourcePapers.filter((p) => sourceIds.has(p.id) && !excluded.has(p.id));
+  const included = new Set(papers.map((p) => p.id));
+  const ev = sourceEvidence.filter((e) => included.has(e.paper_id));
+  if (!ev.length && excluded.size) throw new ApiError(422, 'excluded_sources', 'All available sources were excluded because of retraction or withdrawal notices, or because they are publication updates. Review the notices and add other research papers before generating results.');
   if (!ev.length) return null;
   const paperRef = new Map<string, string>();
   papers.forEach((p, i) => paperRef.set(p.id, `P${i + 1}`));
   const evRef = new Map<string, EvidenceRow>();
   ev.forEach((e, i) => evRef.set(`E${i + 1}`, e));
 
-  const paperLines = papers.map((p) => `${paperRef.get(p.id)}: ${fence(p.title)} (${p.year ?? 'n.d.'})`).join('\n');
+  const paperLines = papers.map((p) => {
+    const check = publicationChecks.find((c) => c.paperId === p.id)!;
+    const note = publicationMessage(check);
+    return `${paperRef.get(p.id)}: ${fence(p.title)} (${p.year ?? 'n.d.'})${note ? ` | Metadata note: ${note}` : ''}`;
+  }).join('\n');
   const evLines = [...evRef]
     .map(([ref, e]) => `${ref} | ${paperRef.get(e.paper_id)} | ${e.category} | ${fence(e.subject)}${e.role ? ` | role: ${fence(e.role)}` : ''}${e.value_text ? ` | ${fence(e.value_text)}` : ''}${e.conditions ? ` | conditions: ${fence(e.conditions)}` : ''}${e.check_status === 'partially_supported' ? ' | partially supported' : ''} | "${fence(e.quote.slice(0, 220))}"`)
     .join('\n');
   const res = await callMetaJson(env, ctx, {
     system: PROPOSAL_SYSTEM,
-    user: `${briefBlock(brief)}\n\nPapers:\n${paperLines}\n\n<evidence>\n${evLines}\n</evidence>\n\nWrite the proposal.`,
+    user: `${briefBlock(brief)}\n\n<document>\nPapers and publication-update notes:\n${paperLines}\n</document>\n\n<evidence>\n${evLines}\n</evidence>\n\nWrite the proposal using only these sources.`,
     schema: Proposal,
     jsonSchema: jsonSchemaOf(Proposal),
     schemaName: 'research_proposal',
     maxCompletionTokens: 32000,
   }, fetchImpl);
 
-  // Validate every citation: unknown evidence or paper refs are removed and counted.
-  let removed = 0;
-  const unsupported: string[] = [];
-  const validE = (xs: string[]) => {
-    const ok = xs.filter((x) => evRef.has(x));
-    removed += xs.length - ok.length;
-    return ok;
-  };
-  const validP = (x: string) => (paperRef.size && [...paperRef.values()].includes(x) ? x : (removed++, null));
   const p = res.data;
-  for (const a of p.approaches) {
-    a.papers = a.papers.map(validP).filter((x): x is string => x !== null);
-    if (a.synthesis_method && !(a.synthesis_method.evidence = validE(a.synthesis_method.evidence)).length) {
-      unsupported.push(`${a.name}: synthesis method ${a.synthesis_method.name}`);
-      a.synthesis_method = null;
-    }
-    a.equipment = a.equipment.filter((i) => (i.evidence = validE(i.evidence)).length > 0 || (unsupported.push(`${a.name}: equipment ${i.name}`), false));
-    a.ingredients.forEach((i) => (i.evidence = validE(i.evidence)));
-    a.method.forEach((m) => (m.evidence = validE(m.evidence)));
-    a.performance = a.performance.filter((x) => (x.evidence = validE(x.evidence)).length > 0 || (unsupported.push(`${a.name}: ${x.property} = ${x.value}`), false));
-    a.ingredients.filter((i) => !i.evidence.length).forEach((i) => unsupported.push(`${a.name}: ingredient ${i.name}`));
-    a.method.filter((m) => !m.evidence.length).forEach((m) => unsupported.push(`${a.name}: step “${m.step.slice(0, 80)}”`));
-  }
-  for (const r of p.ingredient_comparison) r.uses = r.uses.filter((u) => validP(u.paper) && (u.evidence = validE(u.evidence)).length);
-  for (const r of p.method_comparison) r.uses = r.uses.filter((u) => validP(u.paper) && (u.evidence = validE(u.evidence)).length);
-  for (const r of p.performance_comparison) r.entries = r.entries.filter((u) => validP(u.paper) && (u.evidence = validE(u.evidence)).length);
-  p.conflicts.forEach((c) => (c.evidence = validE(c.evidence)));
-  p.adaptations.forEach((a) => (a.basis = validE(a.basis)));
-  p.next_experiments.forEach((x) => (x.basis = validE(x.basis)));
-
-  const used = new Set<string>();
-  JSON.stringify(p).replace(/"E\d+"/g, (m) => (used.add(m.slice(1, -1)), m));
+  const { used, removedReferences, unsupportedStatements } = validateProposal(p, evRef, new Map([...paperRef].map(([id, ref]) => [ref, id])));
   const report: ReportJson = {
     proposal: p,
     papers: Object.fromEntries(papers.map((x) => [paperRef.get(x.id)!, { id: x.id, title: x.title, doi: x.doi, year: x.year }])),
     evidence: Object.fromEntries([...used].map((r) => [r, evRef.get(r)!.id])),
-    validation: { removedReferences: removed, unsupportedStatements: unsupported, evidenceUsed: used.size, papersUsed: papers.length },
+    validation: { removedReferences, unsupportedStatements, evidenceUsed: used.size, papersUsed: papers.length },
     model: res.model,
     generatedAt: nowIso(),
+    publicationChecks,
   };
   return report;
 }
 
 /** Source-grounded follow-up questions over the user's own retrieved chunks. */
 export async function answerQuestion(env: Env, ctx: UsageContext, question: string, fetchImpl: typeof fetch = fetch) {
-  const terms = [...new Set(question.toLowerCase().match(/[a-z0-9][a-z0-9\-]{2,}/g) ?? [])].slice(0, 8);
+  const stop = new Set('the and for from with which what where when how why does did are was were has have had these those their this that into about compare comparison evidence papers paper results show shows methods method used reported gaps research'.split(' '));
+  const terms = [...new Set(question.toLowerCase().match(/[a-z0-9][a-z0-9\-]{2,}/g) ?? [])].filter((t) => !stop.has(t)).slice(0, 12);
   if (!terms.length) return null;
   const like = terms.map(() => 'LOWER(c.text) LIKE ?').join(' OR ');
   const { results } = await env.DB.prepare(
-    `SELECT c.id, c.seq, c.section, c.kind, c.label, c.page_start, c.page_end, c.text, p.title AS paper_title, p.id AS paper_id FROM chunks c JOIN papers p ON p.id = c.paper_id
-     WHERE c.owner_id = ? AND c.project_id = ? AND (${like}) LIMIT 200`,
+    `SELECT c.id, c.seq, c.section, c.kind, c.label, c.page_start, c.page_end, c.text, p.title AS paper_title, p.doi, p.id AS paper_id FROM chunks c JOIN papers p ON p.id = c.paper_id
+     WHERE c.owner_id = ? AND c.project_id = ? AND p.selected = 1
+       AND p.ai_permission IN ('open_license', 'user_attested') AND (${like}) LIMIT 200`,
   )
     .bind(ctx.ownerId, ctx.projectId!, ...terms.map((t) => `%${t}%`))
-    .all<ChunkRow & { paper_title: string; paper_id: string }>();
+    .all<ChunkRow & { paper_title: string; paper_id: string; doi: string | null }>();
+  const sourcePapers = [...new Map(results.map((c) => [c.paper_id, { id: c.paper_id, title: c.paper_title, doi: c.doi }])).values()];
+  const publicationChecks = await checkPublications(env, sourcePapers, fetchImpl);
+  const excluded = new Set(publicationChecks.filter((p) => p.exclusion).map((p) => p.paperId));
   const scored = results
+    .filter((c) => !excluded.has(c.paper_id))
     .map((c) => ({ c, s: terms.reduce((a, t) => a + (c.text.toLowerCase().split(t).length - 1), 0) }))
     .sort((a, b) => b.s - a.s)
     .slice(0, 10)
     .map((x) => x.c);
-  if (!scored.length) return { answer: { answer: 'None of your retrieved papers mention these terms.', citations: [], insufficient_evidence: true }, chunks: [] };
+  if (!scored.length) return { answer: { answer: excluded.size ? 'Matching sources were excluded because they are retracted, withdrawn, or publication notices. Add other papers to answer this question.' : 'The selected papers with permission for analysis do not contain matching passages. Try more specific terms or add a relevant paper.', citations: [], insufficient_evidence: true }, citations: [], publicationChecks };
   const refMap = new Map(scored.map((c, i) => [`Q${i + 1}`, c]));
   const block = [...refMap].map(([ref, c]) => `<chunk ref="${ref}" paper="${attr(c.paper_title)}" section="${attr(c.section ?? '')}"${pages(c) ? ` pages="${pages(c)}"` : ''}>\n${fence(c.text)}\n</chunk>`).join('\n');
+  const notes = publicationChecks.filter((c) => !c.exclusion && publicationMessage(c)).map((c) => `${fence(c.title)}: ${publicationMessage(c)}`).join('\n');
   const res = await callMetaJson(env, ctx, {
     system: QUESTION_SYSTEM,
-    user: `<document>\n${block}\n</document>\n\nQuestion: ${fence(question)}`,
+    user: `<document>\n${block}\nPublication-update notes:\n${notes || 'None supplied.'}\n</document>\n\n${briefBlock({ question })}`,
     schema: Answer,
     jsonSchema: jsonSchemaOf(Answer),
     schemaName: 'grounded_answer',
     maxCompletionTokens: 6000,
   }, fetchImpl);
-  const citations = res.data.citations
+  const checked = res.data.citations
     .map((c) => {
       const chunk = refMap.get(c.chunk_ref);
-      return chunk ? { chunkId: chunk.id, paperId: chunk.paper_id, paperTitle: chunk.paper_title, quote: c.quote, match: matchQuote(c.quote, chunk.text) } : null;
+      return chunk ? { ref: c.chunk_ref, chunkId: chunk.id, paperId: chunk.paper_id, paperTitle: chunk.paper_title, quote: c.quote, match: matchQuote(c.quote, chunk.text) } : null;
     })
     .filter((x) => x !== null);
-  return { answer: res.data, citations, model: res.model };
+  const citations = checked.filter((c) => c.match !== 'not_found');
+  const removedCitations = res.data.citations.length - citations.length;
+  if (removedCitations || (!citations.length && !res.data.insufficient_evidence)) {
+    // Citation-level checks cannot identify which sentence a fabricated quote was meant to support.
+    return { answer: { answer: 'This answer could not be supported by matching source passages. Try a more specific question or add a relevant paper.', citations: [], insufficient_evidence: true }, citations: [], model: res.model, publicationChecks, validation: { removedCitations } };
+  }
+  return { answer: res.data, citations, model: res.model, publicationChecks, validation: { removedCitations } };
 }
 
 export function briefOf(row: { brief_json: string | null }) {
