@@ -1,11 +1,11 @@
 :root {
   color-scheme: light;
-  --paper: #f6f7f9;
+  --paper: #e9ecf1;
   --card: #ffffff;
   --ink: #1c2934;
   --ink-2: #344b60;
-  --muted: #626e79;
-  --line: #d7dce2;
+  --muted: #5a6672;
+  --line: #cdd3dc;
   --accent: #1c5ed6;
   --accent-line: #164db1;
   --accent-soft: #edf3ff;
@@ -29,7 +29,7 @@ a:hover { color: var(--accent); }
 h1, h2, h3, h4, p { margin-top: 0; }
 h1, h2, h3, h4 { margin-bottom: 0; }
 button, input, textarea, select { font: inherit; }
-code { font-family: var(--mono); font-size: .85em; background: #e9edf2; padding: 2px 5px; overflow-wrap: anywhere; }
+code { font-family: var(--mono); font-size: .85em; background: #dfe4ea; padding: 2px 5px; overflow-wrap: anywhere; }
 .skip { position: absolute; left: -999px; top: 8px; background: var(--ink); color: white; padding: 10px 16px; z-index: 100; }
 .skip:focus { left: 16px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -68,7 +68,7 @@ main { padding: 56px 0 64px; min-height: calc(100vh - 172px); }
 /* The home page borrows the reference's typographic scale, not a marketing-page template. */
 .page.home { position: relative; gap: 0; padding-top: 8px; }
 .home-heading { position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px; padding: 28px 0 30px; }
-.home-heading::before { content: ''; position: absolute; inset: -24px -32px -80px; z-index: -1; background-image: radial-gradient(#b9c4d1 0.7px, transparent 0.7px); background-size: 18px 18px; mask-image: radial-gradient(ellipse 65% 70% at 50% 20%, black, transparent); opacity: .5; pointer-events: none; }
+.home-heading::before { content: ''; position: absolute; inset: -24px -32px -80px; z-index: -1; background-image: radial-gradient(#a9b5c4 0.7px, transparent 0.7px); background-size: 18px 18px; mask-image: radial-gradient(ellipse 65% 70% at 50% 20%, black, transparent); opacity: .5; pointer-events: none; }
 .workspace-label { margin: 0; color: var(--muted); font-size: 11px; letter-spacing: .075em; text-transform: uppercase; }
 .home-heading .page-title { display: block; font-size: clamp(46px, 5.6vw, 70px); line-height: 1.06; font-weight: 400; letter-spacing: -2.8px; }
 .home-heading > .muted { margin: 0; font-size: 16px; }
@@ -166,14 +166,14 @@ label.check.inline { align-items: center; font-size: 13px; }
 .badge-warn { color: var(--warn); background: var(--warn-bg); }
 .badge-bad { color: var(--bad); background: var(--bad-bg); }
 .badge-info { color: var(--info); background: var(--info-bg); }
-.badge-neutral { color: var(--muted); background: #ebeff3; }
+.badge-neutral { color: var(--ink-2); background: #dde2e9; }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .notice { padding: 14px 18px; border-left: 2px solid currentColor; font-size: 13px; }
 .notice-info { color: var(--info); background: var(--info-bg); }
 .notice-warn { color: var(--warn); background: var(--warn-bg); }
 .notice-bad { color: var(--bad); background: var(--bad-bg); }
 .notice-good { color: var(--good); background: var(--good-bg); }
-.notice-neutral { background: #ebeff3; }
+.notice-neutral { background: #dde2e9; }
 .status-pill { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
 .tabs { display: flex; gap: 32px; }
@@ -222,7 +222,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-directio
 .approach-equipment { border-bottom: 1px solid var(--line); padding-bottom: 18px; }
 .cite { padding: 2px 5px; border: 1px solid #bccce5; background: var(--info-bg); color: var(--info); cursor: pointer; font: 500 10px/1.3 var(--mono); vertical-align: 1px; margin: 0 2px; }
 .cite:hover { border-color: var(--accent); background: #dce7fb; }
-.paper-ref { font: 500 11px/1.3 var(--mono); padding: 3px 5px; color: var(--ink-2); background: #e8edf3; }
+.paper-ref { font: 500 11px/1.3 var(--mono); padding: 3px 5px; color: var(--ink-2); background: #dde2e9; }
 .instrument-controls { display: flex; flex-wrap: wrap; gap: 14px; }
 .instrument-controls > label { flex: 1 1 220px; }
 .instrument-controls > label:not(:first-child) { flex: 0 1 220px; }
@@ -250,66 +250,51 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-directio
 .card .spinner span { display: inline-block; width: 14px; height: 14px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Glowing compound box: a thin gradient edge that drifts around the card, over a soft halo that
-   breathes. Only transform, opacity and one thin ring repaint are animated. */
-@property --glow-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
-.glow-field {
-  --glow-halo: linear-gradient(115deg, #60a5fa, #67e8f9 32%, #a78bfa 64%, #f0abfc);
-  position: relative; z-index: 20; width: min(760px, 100%); align-self: center; border-radius: 14px;
-}
+/* Glowing compound box. Two soft blobs of light sit behind the card (GlowField moves them with
+   eased transforms: an ambient drift, drawn toward the cursor when it is near). Each blob fades to
+   transparent well inside its own box, so no edge or corner ever shows. The lights live in a
+   fixed, window-sized layer at z-index -1: they paint behind the heading text and the card, are
+   clipped only at the window edge, and can never make the page scroll sideways. */
+.glow-field { position: relative; width: min(760px, 100%); align-self: center; border-radius: 16px; }
 .glow-field-start { width: min(800px, 100%); align-self: flex-start; }
-.glow-field::before {
-  content: ''; position: absolute; inset: 10px 18px -6px; z-index: 0; border-radius: inherit; pointer-events: none;
-  background: var(--glow-halo); filter: blur(26px); opacity: .3; transform: translateZ(0) scale(.97);
-  transition: opacity .6s cubic-bezier(.2, .8, .2, 1), inset .6s cubic-bezier(.2, .8, .2, 1);
-  animation: glow-in 1.2s cubic-bezier(.2, .8, .2, 1) backwards, glow-breathe 7s ease-in-out infinite;
+.glow-lights {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; opacity: .75;
+  transition: opacity .9s cubic-bezier(.2, .8, .2, 1); animation: glow-in 1.6s cubic-bezier(.2, .8, .2, 1) backwards;
 }
+.glow-light {
+  position: absolute; left: 0; top: 0; width: 620px; height: 400px; margin: -200px 0 0 -310px; border-radius: 50%;
+  filter: blur(28px); will-change: transform, opacity;
+}
+.glow-light-a { background: radial-gradient(closest-side, rgba(124, 58, 237, .34), rgba(99, 102, 241, .16) 50%, rgba(99, 102, 241, 0)); }
+.glow-light-b { width: 520px; height: 340px; margin: -170px 0 0 -260px; background: radial-gradient(closest-side, rgba(14, 165, 233, .3), rgba(37, 99, 235, .13) 50%, rgba(37, 99, 235, 0)); }
+.glow-field:hover > .glow-lights { opacity: .9; }
+/* Grey text within the light's reach uses the darker ink so it keeps at least 4.5:1 contrast
+   where the violet tint falls behind it. */
+.home-heading > .muted, .project-heading .muted, .page.home .empty, .tabs-line .tab:not(.active), .searched .muted { color: var(--ink-2); }
+.glow-field[data-offscreen] > .glow-lights { visibility: hidden; }
+.glow-field:focus-within > .glow-lights, .glow-field[data-busy] > .glow-lights { opacity: 1; }
+/* The card stays above later page content so the compound suggestions menu is never covered. */
 .glow-field > .card {
-  position: relative; z-index: 1; border-radius: 14px; border-color: transparent;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 10px 30px -18px rgba(16, 24, 40, .25);
+  position: relative; z-index: 20; border-radius: 16px; border-color: rgba(16, 24, 40, .09);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 18px 40px -24px rgba(16, 24, 40, .35);
+  transition: border-color .4s ease;
 }
-/* The gradient is built here, where --glow-angle animates; the 0deg fallback keeps a still edge
-   in browsers without @property. */
+.glow-field:focus-within > .card { border-color: rgba(37, 99, 235, .4); }
+/* Edge highlight: an arc of colour on the border that turns to face the leading light. */
 .glow-field > .card::before {
   content: ''; position: absolute; inset: -1px; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
-  background: conic-gradient(from var(--glow-angle, 0deg), #2563eb, #0891b2, #7c3aed, #c026d3, #2563eb); opacity: .55;
+  background: conic-gradient(from calc(var(--ring-angle, 225deg) - 95deg),
+    rgba(124, 58, 237, 0) 0deg, rgba(124, 58, 237, .85) 55deg, rgba(37, 99, 235, .9) 95deg,
+    rgba(14, 165, 233, .7) 135deg, rgba(14, 165, 233, 0) 190deg, rgba(14, 165, 233, 0) 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  transition: opacity .5s cubic-bezier(.2, .8, .2, 1), padding .3s ease;
-  animation: glow-in 1.2s cubic-bezier(.2, .8, .2, 1) backwards, glow-spin 10s linear infinite;
+  opacity: .55; transition: opacity .6s cubic-bezier(.2, .8, .2, 1);
 }
 .glow-field:hover > .card::before { opacity: .75; }
-.glow-field:hover::before { opacity: .38; }
-.glow-field:focus-within > .card::before { opacity: 1; padding: 1.5px; }
-.glow-field:focus-within::before { opacity: .55; inset: 4px 10px -10px; }
-/* While searching the halo brightens through its normal opacity transition. No opacity
-   animation here: an animation overrides the transition, so the halo would pop when it ends. */
-.glow-field[data-busy]::before { opacity: .55; }
-.glow-field[data-busy] > .card::before { opacity: 1; }
-/* Cursor light (set by GlowField): a spot on the edge under the pointer, and a halo that gathers
-   toward it. --glow-near is 0 far away and 1 on the box, so both fade with distance. */
-.glow-field::after {
-  /* Extends only vertically: a horizontal overhang would add sideways scrolling on narrow
-     windows. The blur still softens the light past the left and right edges. */
-  content: ''; position: absolute; inset: -60px 0; z-index: 0; pointer-events: none;
-  background: radial-gradient(240px circle at var(--mx, -999px) calc(var(--my, -999px) + 60px), rgba(124, 58, 237, .32), rgba(37, 99, 235, .22) 45%, transparent 72%);
-  filter: blur(18px); opacity: var(--glow-near, 0); transition: opacity .35s ease;
-}
-.glow-field > .card::after {
-  content: ''; position: absolute; inset: -1px; z-index: 1; border-radius: inherit; padding: 1.5px; pointer-events: none;
-  background: radial-gradient(170px circle at var(--mx, -999px) var(--my, -999px), #7c3aed, #2563eb 40%, transparent 75%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  opacity: var(--glow-near, 0); transition: opacity .35s ease;
-}
-@media (hover: none), (pointer: coarse) { .glow-field::after, .glow-field > .card::after { display: none; } }
-@keyframes glow-spin { to { --glow-angle: 360deg; } }
-@keyframes glow-breathe { 0%, 100% { transform: translateZ(0) scale(.97); } 50% { transform: translateZ(0) scale(1.01) translateY(3px); } }
+.glow-field:focus-within > .card::before, .glow-field[data-busy] > .card::before { opacity: 1; }
 @keyframes glow-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .glow-field::before, .glow-field > .card::before { animation: none; transition-duration: .01s; }
-  .glow-field > .card::before { --glow-angle: 135deg; }
-  .glow-field::after, .glow-field > .card::after { display: none; }
+  .glow-lights, .glow-field > .card, .glow-field > .card::before { animation: none; transition-duration: .01s; }
 }
 @media (prefers-reduced-motion: reduce) { .spinner span { animation-duration: 3s; } }
 @media (max-width: 1000px) {

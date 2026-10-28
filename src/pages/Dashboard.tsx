@@ -72,7 +72,7 @@ export function Dashboard() {
     <section className="page home">
       <div className="home-heading">
         <p className="workspace-label">Chemistry research workspace</p>
-        <h1 className="page-title">What do you want<br /><span className="outline-type">to make?</span></h1>
+        <h1 className="page-title">Synthesize<br /><span className="outline-type">Anything</span></h1>
         <p className="muted">Find papers. Explore ways to make it.</p>
       </div>
       {error && <Notice tone="bad">{error}</Notice>}
