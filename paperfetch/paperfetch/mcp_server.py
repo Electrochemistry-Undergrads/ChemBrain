@@ -35,7 +35,8 @@ server = MCPServer(
         "Research-paper full text for synthesis planning. Typical flow: search_papers -> fetch_papers -> "
         "read_paper(part='methods'). search_library searches papers already fetched. Papers that come back "
         "without full text (mostly ACS/RSC) need the user to save the PDF into the inbox folder; never try "
-        "to download them another way."
+        "to download them another way. send_to_chembrain uploads a ChemBrain project's missing papers using "
+        "the link code the user copies from the project's Papers tab."
     ),
 )
 
@@ -224,6 +225,27 @@ def access_status() -> str:
             + (f"({', '.join(f'{k} {v}' for k, v in sorted(by_pub.items()))})" if todo else "")
             + f"\ndownload list: {queue}\n"
             "Run on the campus network or VPN; subscribed papers only come through there.")
+
+
+@server.tool()
+def send_to_chembrain(site: str, code: str, limit: int = 20) -> str:
+    """Send a ChemBrain project's missing papers from this computer (on the campus network) into the project.
+
+    site: the ChemBrain address, e.g. https://chembrain.pages.dev. code: the link code (cbl_...) the user
+    created in the project's Papers tab. Fetches up to `limit` papers that lack full text in the project,
+    uploads those it gets, and lists the rest for the user to save into the inbox folder.
+    """
+    from .push import PushError, push
+
+    c = ctx()
+    try:
+        report = push(site, code, c, limit=limit)
+    except PushError as e:
+        return f"Not sent: {e}"
+    text = report.text(str(c.cfg.inbox_dir))
+    if report.missing:
+        text += f"\ndownload list: {write_queue(report.missing, c, PROJECT_ROOT / 'output')}"
+    return text
 
 
 def main() -> None:

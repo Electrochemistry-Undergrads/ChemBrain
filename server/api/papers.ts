@@ -1,4 +1,5 @@
 import { crossrefLookup } from '../connectors/crossref';
+import type { Env } from '../env';
 import { publisherOf, PROVIDER_LABEL } from '../connectors/publishers';
 import { ApiError, json, notFound } from '../http/respond';
 import { aiPermissionFor, ingestDocument, parseStatusFor, retrievalStatusFor } from '../jobs/documents';
@@ -105,33 +106,11 @@ export const paperRoutes: Route[] = [
     path: '/api/projects/:id/papers/:pid/upload',
     handler: async ({ env, user, params, req }) => {
       const paper = await ownedPaper(env, user.id, params.id, params.pid);
-      const len = Number(req.headers.get('content-length') || 0);
-      if (len > MAX_UPLOAD) throw new ApiError(413, 'too_large', 'Files up to 30 MB are supported.');
-      const form = await req.formData().catch(() => null);
-      const file = form?.get('file');
-      if (!file || typeof file === 'string') throw new ApiError(400, 'no_file', 'Choose a PDF or XML file to upload.');
-      const attestRead = form!.get('canRead') === 'true';
-      if (!attestRead) throw new ApiError(400, 'attest', 'Confirm that you are entitled to read this paper before uploading it.');
-      const attestAi = form!.get('aiPermitted') === 'true';
-      const bytes = new Uint8Array(await (file as File).arrayBuffer());
-      if (bytes.length > MAX_UPLOAD) throw new ApiError(413, 'too_large', 'Files up to 30 MB are supported.');
-      const r = await ingestDocument(env, { ...paper, owner_id: user.id, project_id: params.id }, bytes, {
-        connector: attestAi ? 'user_upload_attested' : 'user_upload',
-        format: 'auto',
-        contentType: (file as File).type || null,
-        versionLabel: `Uploaded by the researcher (${(file as File).name.slice(0, 100)})`,
+      return acceptUpload(env, req, paper, user.id, params.id, (form) => {
+        if (form.get('canRead') !== 'true') throw new ApiError(400, 'attest', 'Confirm that you are entitled to read this paper before uploading it.');
+        const attestAi = form.get('aiPermitted') === 'true';
+        return { attestAi, connector: attestAi ? 'user_upload_attested' : 'user_upload', versionLabel: (name) => `Uploaded by the researcher (${name})`, reasonPrefix: 'Uploaded by you.' };
       });
-      if (!r.ok) throw new ApiError(422, 'rejected', r.reason);
-      const status = retrievalStatusFor(r.completeness!);
-      await env.DB.prepare(
-        'UPDATE papers SET user_access = ?, retrieval_status = ?, retrieval_reason = ?, parse_status = ?, ai_permission = ?, analysis_status = ?, selected = 1, updated_at = ? WHERE id = ? AND owner_id = ?',
-      )
-        .bind(
-          paper.user_access === 'open_access' || paper.user_access === 'entitled' ? paper.user_access : 'user_confirmed',
-          status, `Uploaded by you. ${r.reason}`, parseStatusFor(r.completeness!), aiPermissionFor(r.license ?? paper.license, attestAi), 'not_started', nowIso(), paper.id, user.id,
-        )
-        .run();
-      return json({ ok: true, completeness: r.completeness, identity: r.identity, chunks: r.chunkCount });
     },
   },
   {
@@ -171,3 +150,40 @@ export const paperRoutes: Route[] = [
     handler: async () => json({ providers: PROVIDER_LABEL }),
   },
 ];
+
+type OwnedPaper = Awaited<ReturnType<typeof ownedPaper>>;
+
+/**
+ * Parses an uploaded PDF/XML into a paper, shared by the browser upload and paperfetch's link
+ * upload. `terms` reads the attestations from the form (or the link code) and names the connector.
+ */
+export async function acceptUpload(
+  env: Env, req: Request, paper: OwnedPaper, ownerId: string, projectId: string,
+  terms: (form: FormData) => { attestAi: boolean; connector: string; versionLabel: (fileName: string) => string; reasonPrefix: string },
+) {
+  const len = Number(req.headers.get('content-length') || 0);
+  if (len > MAX_UPLOAD) throw new ApiError(413, 'too_large', 'Files up to 30 MB are supported.');
+  const form = await req.formData().catch(() => null);
+  const file = form?.get('file');
+  if (!form || !file || typeof file === 'string') throw new ApiError(400, 'no_file', 'Choose a PDF or XML file to upload.');
+  const t = terms(form);
+  const bytes = new Uint8Array(await (file as File).arrayBuffer());
+  if (bytes.length > MAX_UPLOAD) throw new ApiError(413, 'too_large', 'Files up to 30 MB are supported.');
+  const r = await ingestDocument(env, { ...paper, owner_id: ownerId, project_id: projectId }, bytes, {
+    connector: t.connector,
+    format: 'auto',
+    contentType: (file as File).type || null,
+    versionLabel: t.versionLabel((file as File).name.slice(0, 100)),
+  });
+  if (!r.ok) throw new ApiError(422, 'rejected', r.reason);
+  const status = retrievalStatusFor(r.completeness!);
+  await env.DB.prepare(
+    'UPDATE papers SET user_access = ?, retrieval_status = ?, retrieval_reason = ?, parse_status = ?, ai_permission = ?, analysis_status = ?, selected = 1, updated_at = ? WHERE id = ? AND owner_id = ?',
+  )
+    .bind(
+      paper.user_access === 'open_access' || paper.user_access === 'entitled' ? paper.user_access : 'user_confirmed',
+      status, `${t.reasonPrefix} ${r.reason}`, parseStatusFor(r.completeness!), aiPermissionFor(r.license ?? paper.license, t.attestAi), 'not_started', nowIso(), paper.id, ownerId,
+    )
+    .run();
+  return json({ ok: true, completeness: r.completeness, identity: r.identity, chunks: r.chunkCount });
+}

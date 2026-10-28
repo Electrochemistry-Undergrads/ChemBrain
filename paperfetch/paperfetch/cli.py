@@ -1,4 +1,4 @@
-"""Command line: python -m paperfetch {fetch,queue,bench,context,status} ..."""
+"""Command line: python -m paperfetch {fetch,bench,context,status,push} ..."""
 from __future__ import annotations
 
 import argparse
@@ -148,6 +148,19 @@ def cmd_context(args) -> None:
         print(text)
 
 
+def cmd_push(args) -> None:
+    from .push import PushError, push
+
+    ctx = Context()
+    try:
+        report = push(args.site, args.code, ctx, limit=args.limit)
+    except PushError as e:
+        sys.exit(f"paperfetch push: {e}")
+    print(report.text(str(ctx.cfg.inbox_dir)))
+    if report.missing:
+        print(f"download list: {write_queue(report.missing, ctx, Path(args.out))}")
+
+
 def cmd_status(args) -> None:
     ctx = Context()
     print("full-text routes:")
@@ -192,6 +205,13 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("status", help="show which routes are enabled")
     s.set_defaults(func=cmd_status)
+
+    pu = sub.add_parser("push", help="send papers into a ChemBrain project (code from its Papers tab)")
+    pu.add_argument("site", help="ChemBrain address, e.g. https://chembrain.pages.dev")
+    pu.add_argument("code", help="link code from the project's Papers tab (cbl_...)")
+    pu.add_argument("--limit", type=int, default=20, help="papers per run (max 50)")
+    pu.add_argument("--out", default=str(PROJECT_ROOT / "output"))
+    pu.set_defaults(func=cmd_push)
 
     args = ap.parse_args(argv)
     args.func(args)

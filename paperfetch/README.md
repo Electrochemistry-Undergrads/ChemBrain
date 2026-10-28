@@ -106,6 +106,7 @@ text; `paper.si_status` says whether the SI was retrieved.
 | `search_library` | searches the text of every paper already fetched, one snippet per paper |
 | `synthesis_context` | the `build_context` block for planning a synthesis |
 | `access_status` | which routes are on, how many papers still need a PDF saved by hand, and the download list |
+| `send_to_chembrain` | sends a ChemBrain project's missing papers into it (see below) |
 
 Register it once from this folder (see the command below); Claude Code asks you to approve it the first
 time you start a session here. The server adds no new download routes, so the rules above still
@@ -121,7 +122,26 @@ claude mcp add paperfetch --scope project -e PYTHONPATH="$PWD" -- "$PWD/.venv/bi
 ```
 
 It doesn't give a hosted website institutional access: a server in the cloud isn't on anyone's
-campus network, so publishers see it as unentitled.
+campus network, so publishers see it as unentitled. To get papers into ChemBrain, use `push`.
+
+### Sending papers to ChemBrain
+
+ChemBrain's servers can't open subscription papers, but your computer on the campus network or VPN
+can. In a ChemBrain project, open **Papers → Send papers from your campus computer**, confirm you're
+entitled to read the papers, and create a link code. Then, from this folder:
+
+```bash
+.venv/bin/python -m paperfetch push https://chembrain.pages.dev cbl_your_code
+```
+
+It asks the project which papers still lack full text, fetches up to 20 per run (`--limit`, max 50)
+and uploads them, each with its Supporting Information. ChemBrain runs its usual identity and
+completeness checks, so a wrong or partial paper is rejected rather than counted as full text.
+Papers it can't get, mostly ACS and RSC, are printed with UT library links and written to
+`output/download_queue.html`. Save those PDFs into `inbox/` and run the same command again.
+
+The code only uploads into that one project, expires after 7 days, and can be revoked in the panel.
+From Claude, the `send_to_chembrain` tool does the same thing.
 
 ## Getting to 90%
 

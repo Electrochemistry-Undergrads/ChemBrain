@@ -136,6 +136,8 @@ label.check.inline { align-items: center; font-size: 13px; }
 .compact-details > summary, .approach-details > summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
 .compact-details[open] > summary, .approach-details[open] > summary { margin-bottom: 16px; }
 .compact-details p { margin: 10px 0; }
+.command { display: flex; gap: 8px; align-items: flex-start; }
+.command code { display: block; flex: 1; min-width: 0; padding: 10px 12px; white-space: pre-wrap; word-break: break-all; }
 .download-menu summary { cursor: pointer; font-size: 13px; }
 .download-menu[open] > .row { margin-top: 12px; }
 .short-text p { margin: 0; line-height: 1.7; white-space: pre-wrap; }

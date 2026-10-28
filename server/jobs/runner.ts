@@ -242,7 +242,7 @@ async function retrieveTask(env: Env, job: JobRow, task: TaskRow, fetchImpl: typ
 
   let documentId: string | null = existing?.id ?? null;
   let license = existing?.license ?? paper.license;
-  let attested = existing?.connector === 'user_upload_attested' || Boolean(provider && ctx.settings[provider]?.aiProcessingAttested);
+  let attested = ['user_upload_attested', 'paperfetch_attested'].includes(existing?.connector ?? '') || Boolean(provider && ctx.settings[provider]?.aiProcessingAttested);
   let log: RetrievalAttempt[] = [];
 
   if (!existing) {

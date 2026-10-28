@@ -1,9 +1,11 @@
 import type { Env } from '../env';
+import { requireLink, type LinkGrant } from '../auth/link';
 import { checkCsrf, requireUser, type AuthUser } from '../auth/session';
 import { ApiError, errorResponse, json, notFound } from '../http/respond';
 import { authRoutes } from './auth';
 import { connectionRoutes } from './connections';
 import { jobRoutes } from './jobs';
+import { linkRoutes } from './link';
 import { paperRoutes } from './papers';
 import { projectRoutes } from './projects';
 import { reportRoutes } from './reports';
@@ -15,6 +17,8 @@ export interface Ctx {
   req: Request;
   params: Record<string, string>;
   user: AuthUser;
+  /** Set on link routes: the project the link code may upload into. */
+  link?: LinkGrant;
   fetch: typeof fetch;
   body<T = Record<string, unknown>>(): Promise<T>;
 }
@@ -24,10 +28,12 @@ export interface Route {
   path: string;
   /** Public routes skip authentication. Everything else requires a signed-in user. */
   public?: boolean;
+  /** Link routes are called by paperfetch with a project link code instead of a session. */
+  link?: boolean;
   handler: (c: Ctx) => Promise<Response>;
 }
 
-const ROUTES: Route[] = [...systemRoutes, ...authRoutes, ...materialRoutes, ...projectRoutes, ...paperRoutes, ...connectionRoutes, ...jobRoutes, ...reportRoutes];
+const ROUTES: Route[] = [...systemRoutes, ...authRoutes, ...materialRoutes, ...projectRoutes, ...paperRoutes, ...linkRoutes, ...connectionRoutes, ...jobRoutes, ...reportRoutes];
 
 const compiled = ROUTES.map((r) => ({
   ...r,
@@ -48,14 +54,18 @@ export async function handleApi(req: Request, env: Env, fetchImpl: typeof fetch 
         methodMismatch = true;
         continue;
       }
-      checkCsrf(req);
-      const user = r.public ? ({ id: '', username: '' } as AuthUser) : await requireUser(env, req);
+      // Link routes carry a bearer code that browsers never attach on their own, so the
+      // cookie-based CSRF check doesn't apply to them.
+      const link = r.link ? await requireLink(env, req) : undefined;
+      if (!link) checkCsrf(req);
+      const user = link ? { id: link.ownerId, username: '' } : r.public ? ({ id: '', username: '' } as AuthUser) : await requireUser(env, req);
       let parsed: unknown;
       const ctx: Ctx = {
         env,
         req,
         params: { ...(m.groups ?? {}) },
         user,
+        link,
         fetch: fetchImpl,
         async body<T>() {
           if (parsed !== undefined) return parsed as T;

@@ -70,5 +70,7 @@ export const CONNECTOR_NAME: Record<string, string> = {
   demo_bundle: 'Demonstration bundle',
   user_upload: 'Your upload',
   user_upload_attested: 'Your upload',
+  paperfetch: 'paperfetch (your computer)',
+  paperfetch_attested: 'paperfetch (your computer)',
   validation: 'Document checks',
 };

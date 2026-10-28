@@ -170,5 +170,87 @@ class TestMcpServer(unittest.TestCase):
             self.m.search_papers("perovskite", publishers=["Science"])
 
 
+class TestPush(unittest.TestCase):
+    """push() against a fake ChemBrain; fetching is stubbed so nothing touches the network."""
+
+    def _paper(self, doi, full=True):
+        from paperfetch.models import Paper, Section
+
+        return Paper(query=doi, doi=doi, title="Cold-injection <synthesis> & more", coverage="full" if full else "abstract",
+                     fulltext_source="oa-link:crossref-tdm", version="published",
+                     sections=[Section("Abstract", "Short abstract.", "abstract"),
+                               Section("Methods", "PbBr2 (0.2 mmol)\x0c was dissolved.\n\nThen heated.", "methods")],
+                     si_text="### ja_si_001.pdf\nSynthesis of 3: stirred 2 h.", si_status="fetched" if full else "none",
+                     manual_links=[f"https://doi.org/{doi}", f"https://login.ezproxy.lib.utexas.edu/login?url=https://doi.org/{doi}"])
+
+    def test_to_jats(self):
+        from xml.etree import ElementTree
+
+        from paperfetch.push import to_jats
+
+        root = ElementTree.fromstring(to_jats(self._paper("10.1021/jacs.1c06913")))
+        self.assertEqual(root.find(".//article-id").text, "10.1021/jacs.1c06913")
+        self.assertEqual(root.find(".//article-title").text, "Cold-injection <synthesis> & more")
+        self.assertEqual(root.find(".//abstract/p").text, "Short abstract.")
+        methods = root.find(".//body/sec[@sec-type='methods']")
+        self.assertEqual([p.text for p in methods.findall("p")], ["PbBr2 (0.2 mmol) was dissolved.", "Then heated."])
+        si = root.findall(".//body/sec")[-1]
+        self.assertEqual(si.find("title").text, "Supporting Information")
+        self.assertEqual(si.find("sec/title").text, "ja_si_001.pdf")
+
+    def test_push(self):
+        import httpx
+
+        from paperfetch.push import PushError, push
+
+        uploads = []
+
+        def handler(request):
+            if request.headers.get("authorization") != "Bearer cbl_" + "a" * 43:
+                return httpx.Response(401, json={"error": {"message": "This link code is expired."}})
+            if request.url.path == "/api/link/papers":
+                return httpx.Response(200, json={"project": {"name": "Perovskites"}, "papers": [
+                    {"id": "pap_1", "doi": "10.1038/a", "title": "A", "selected": True},
+                    {"id": "pap_2", "doi": "10.1021/b", "title": "B", "selected": True},
+                    {"id": "pap_3", "doi": "10.1016/c", "title": "C", "selected": False}]})
+            uploads.append(request.url.path)
+            if request.url.path.endswith("pap_3/upload"):
+                return httpx.Response(422, json={"error": {"message": "Rejected: wrong paper"}})
+            return httpx.Response(200, json={"ok": True})
+
+        class FakeIndex:
+            def refresh(self):
+                pass
+
+        class FakeCtx:
+            local_index = FakeIndex()
+
+        fetched = []
+
+        def fake_fetch(queries, ctx):
+            fetched.extend(queries)
+            return [self._paper(q, full=q != "10.1021/b") for q in queries]
+
+        client = httpx.Client(transport=httpx.MockTransport(handler))
+        report = push("https://chembrain.test/", "cbl_" + "a" * 43, FakeCtx(), client=client, fetch=fake_fetch)
+        self.assertEqual(fetched, ["10.1038/a", "10.1021/b", "10.1016/c"])
+        self.assertEqual(uploads, ["/api/link/papers/pap_1/upload", "/api/link/papers/pap_3/upload"])
+        self.assertEqual([p.doi for p in report.sent], ["10.1038/a"])
+        self.assertEqual([p.doi for p in report.missing], ["10.1021/b"])
+        self.assertIn("wrong paper", report.rejected[0][1])
+        self.assertIn("ezproxy", report.text("/inbox"))
+
+        report = push("https://chembrain.test", "cbl_" + "a" * 43, FakeCtx(), limit=1,
+                      client=httpx.Client(transport=httpx.MockTransport(handler)), fetch=fake_fetch)
+        self.assertEqual(report.remaining, 2)
+        with self.assertRaisesRegex(PushError, "expired"):
+            push("https://chembrain.test", "cbl_" + "b" * 43, FakeCtx(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+        for site in ("http://chembrain.pages.dev", "ftp://x"):
+            with self.assertRaises(PushError):
+                push(site, "cbl_" + "a" * 43, FakeCtx(), client=client)
+        with self.assertRaises(PushError):
+            push("https://chembrain.test", "not-a-code", FakeCtx(), client=client)
+
+
 if __name__ == "__main__":
     unittest.main()

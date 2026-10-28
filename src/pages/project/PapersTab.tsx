@@ -7,6 +7,7 @@ import { Coverage } from './Coverage';
 import { SearchedFor } from './BriefTab';
 import type { ProjectData } from '../Project';
 import { BrowserElsevier } from '../../components/BrowserElsevier';
+import { PaperfetchLink } from '../../components/PaperfetchLink';
 import { browserElsevierState, importBrowserElsevierPaper, subscribeBrowserElsevier } from '../../lib/elsevier-browser';
 
 export interface Paper {
@@ -147,6 +148,7 @@ export function PapersTab({ data, reload }: { data: ProjectData; reload: () => v
           <button className="btn" disabled={!doi || busy !== null}>Add</button>
         </form>
       </details>
+      {papers.length > 0 && <PaperfetchLink projectId={id} missing={papers.filter((p) => p.doi && p.retrieval_status !== 'full_text_retrieved').length} onReceived={() => (load(), reload())} />}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {papers.length === 0 && <p className="muted empty">No papers yet. Start a search from Idea, or add a paper above.</p>}
       {papers.length > 0 && shown.length === 0 && <p className="muted empty">No matching papers.</p>}
